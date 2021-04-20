@@ -121,7 +121,15 @@ uint64 sys_sigaction(void) {
 }
 
 uint64 sys_sigret(void){
+    struct proc *p = myproc();
 
-    return -1;
+    // restore trapframe backup.
+    memmove(p->trapframe,p->usertrap_backup,sizeof(struct trapframe));
+    p->trapframe->sp += sizeof(struct trapframe);
+
+    //restore mask backup
+    p->signal_mask = p->signal_mask_backup;
+
+    return 0;
 }
 

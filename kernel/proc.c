@@ -16,6 +16,8 @@ int nextpid = 1;
 struct spinlock pid_lock;
 
 extern void forkret(void);
+extern void sigret_start(void);
+extern void sigret_end(void);
 
 static void freeproc(struct proc *p);
 
@@ -694,7 +696,7 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 
 /// Task 2.4
 /// Checking for the process's 32 possible pending signals and handling them.
-void signalChecker(void) {
+void signal_handler(void) {
     struct proc *p = myproc();
     int pending_signal_bit;
     int mask_signal_bit;
@@ -703,7 +705,7 @@ void signalChecker(void) {
         pending_signal_bit = p->pending_signals & (1 << i); // Check if the bit in position i of pend_sig is 1
         mask_signal_bit = p->signal_mask & (1 << i);   // Check if the bit in the i place at the mask is 1
         if (pending_signal_bit && (!mask_signal_bit || i == SIGKILL || i == SIGSTOP)) {  //SIGSTOP and SIGKILL can not be blocked
-            if (i == SIGKILL) { // SIGKILL Handling
+            if (i == SIGKILL || p->signal_handlers[i] == (void*) SIG_DFL || p->signal_handlers[i] == (void*) SIGKILL) { // SIGKILL Handling
                 p->killed = 1;
                 if (p->state == SLEEPING) {
                     // Wake up the process from sleeping
@@ -711,23 +713,44 @@ void signalChecker(void) {
                     p->state = RUNNABLE;
                 }
                 // pop_off();
-                p->pending_signals ^= (1 << SIGKILL); // Set the bit of the signal back to zero (bitwise xor)
-                continue;
+                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
             }
-            if (i == SIGSTOP) { // SIGKILL Handling
+            else if (i == SIGSTOP || p->signal_handlers[i] == (void*) SIGSTOP) { // SIGKILL Handling
                 p->frozen = 1;
                 while((p->pending_signals & (1<<SIGCONT)) == 0){ // while SIGCONT is not turned on
                     yield();
                 }
-                p->pending_signals ^= (1 << SIGSTOP); // Set the bit of the signal back to zero (bitwise xor)
-                continue;
+                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
             }
-            if (i == SIGCONT) { // SIGKILL Handling
+            else if (i == SIGCONT || p->signal_handlers[i] == (void*) SIGCONT) { // SIGKILL Handling
                 p->frozen = 0;
-                p->pending_signals ^= (1 << SIGCONT); // Set the bit of the signal back to zero (bitwise xor)
-                continue;
+                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
+            }
+
+            else if(p->signal_handlers[i] == (void*) SIG_IGN){ // The handler of the current signal is IGN, thus we ignore the current signal
+                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero
+            }
+            // Handling user space handler
+            else{
+                // Backup mask
+                p->signal_mask_backup = p->signal_mask;
+                p->signal_mask = p->signal_mask_arr[i];
+                // Backup trapframe
+                struct trapframe* tf;
+                tf = p->trapframe; // Passing a pointer to the process trapframe
+                tf->sp -= sizeof(struct trapframe); // Save space to the trapframe
+                memmove((void*) (tf->sp), tf, sizeof(struct trapframe)); // copy the trapframe to the stack
+                p->usertrap_backup = (void*) (tf->sp);
+                // change return address to sigret function
+                tf->sp -= &sigret_start - &sigret_end; // Save a space at the stack to the sigret function
+                memmove((void*)tf->sp,sigret_start,&sigret_end - &sigret_start); // memmove function move sigret function to sp register
+                tf->sp -= 4; // Save place in the stack for signum argument
+                tf->sp = i; // push signum  argument to the stack
+                tf->sp -= 4; // Save place for the return address
+                tf->epc = (uint64)p->signal_handlers[i]; // move handler[i] function to epc in order to run the user handler
+                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero // TODO understand when we return to this line
+                return; // TODO how do we continue to the next iteration, if so.
             }
         }
-
     }
 }

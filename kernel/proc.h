@@ -108,9 +108,10 @@ struct proc {
   // signal data structure
   uint pending_signals; // Pending signals array
   uint signal_mask;  // Signal masks
+  uint signal_mask_backup;
   uint signal_mask_arr[32]; // Signal masks array for each handler
   void* signal_handlers[32]; // Signal handlers
-  struct trapframe* user_trap_backup;
+  struct trapframe* usertrap_backup;
   uint frozen; // 0 not frozen, 1 frozen
 };
 
