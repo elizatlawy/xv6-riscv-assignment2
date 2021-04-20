@@ -111,6 +111,7 @@ struct proc {
   uint signal_mask_arr[32]; // Signal masks array for each handler
   void* signal_handlers[32]; // Signal handlers
   struct trapframe* user_trap_backup;
+  uint frozen; // 0 not frozen, 1 frozen
 };
 
 
