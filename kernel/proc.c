@@ -563,7 +563,6 @@ sleep(void *chan, struct spinlock *lk) {
 void
 wakeup(void *chan) {
     struct proc *p;
-
     for (p = proc; p < &proc[NPROC]; p++) {
         if (p != myproc()) {
             acquire(&p->lock);
@@ -575,31 +574,30 @@ wakeup(void *chan) {
     }
 }
 
-// Kill the process with the given pid.
-// The victim won't exit until it tries to return
-// to user space (see usertrap() in trap.c).
+
 int
 kill(int pid, int signum) {
     struct proc *p;
-
+    // push_off(); // disable interrupts
     for (p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
         if (p->pid == pid) {
-            p->pending_signals = p->pending_signals | (1<<signum);
-            p->killed = 1;
-            if (p->state == SLEEPING) {
-                // Wake process from sleep().
-                p->state = RUNNABLE;
+            if (p->state != ZOMBIE && p->state != UNUSED && p->killed != 1) {
+                p->pending_signals = p->pending_signals | (1 << signum);
+                release(&p->lock);
+                // pop_off();
+                return 0;
             }
-            release(&p->lock);
-            return 0;
         }
         release(&p->lock);
     }
+    // pop_off();
     return -1;
 }
 
-
+// Kill the process with the given pid.
+// The victim won't exit until it tries to return
+// to user space (see usertrap() in trap.c).
 //int
 //kill(int pid) {
 //    struct proc *p;
@@ -694,3 +692,42 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
     return 0;
 }
 
+/// Task 2.4
+/// Checking for the process's 32 possible pending signals and handling them.
+void signalChecker(void) {
+    struct proc *p = myproc();
+    int pending_signal_bit;
+    int mask_signal_bit;
+
+    for (int i = 0; i < 32; i++) {
+        pending_signal_bit = p->pending_signals & (1 << i); // Check if the bit in position i of pend_sig is 1
+        mask_signal_bit = p->signal_mask & (1 << i);   // Check if the bit in the i place at the mask is 1
+        if (pending_signal_bit && (!mask_signal_bit || i == SIGKILL || i == SIGSTOP)) {  //SIGSTOP and SIGKILL can not be blocked
+            if (i == SIGKILL) { // SIGKILL Handling
+                p->killed = 1;
+                if (p->state == SLEEPING) {
+                    // Wake up the process from sleeping
+                    // push_off();
+                    p->state = RUNNABLE;
+                }
+                // pop_off();
+                p->pending_signals ^= (1 << SIGKILL); // Set the bit of the signal back to zero (bitwise xor)
+                continue;
+            }
+            if (i == SIGSTOP) { // SIGKILL Handling
+                p->frozen = 1;
+                while((p->pending_signals & (1<<SIGCONT)) == 0){ // while SIGCONT is not turned on
+                    yield();
+                }
+                p->pending_signals ^= (1 << SIGSTOP); // Set the bit of the signal back to zero (bitwise xor)
+                continue;
+            }
+            if (i == SIGCONT) { // SIGKILL Handling
+                p->frozen = 0;
+                p->pending_signals ^= (1 << SIGCONT); // Set the bit of the signal back to zero (bitwise xor)
+                continue;
+            }
+        }
+
+    }
+}
