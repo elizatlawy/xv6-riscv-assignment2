@@ -105,7 +105,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-  //signal data structure
+  // signal data structure
   uint pending_signals; // Pending signals array
   uint signal_mask;  // Signal masks
   uint signal_mask_arr[32]; // Signal masks array for each handler
