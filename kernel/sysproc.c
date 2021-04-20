@@ -89,6 +89,7 @@ sys_uptime(void) {
 }
 
 /// Task 2.1.3
+/// Updating the signal mask of the process with the given sigmask
 uint64 sys_sigprocmask(void) {
     uint new_mask;
     if (argint(0, &new_mask) < 0)
@@ -99,6 +100,7 @@ uint64 sys_sigprocmask(void) {
 }
 
 /// Task 2.1.4
+/// Registering a custom handler for a specific signal
 uint64 sys_sigaction(void) {
     int signum;
     if (argint(0, &signum) < 0 || signum < 0 || signum > 31)
@@ -113,5 +115,9 @@ uint64 sys_sigaction(void) {
         return -1;
 
     return sigaction(signum, (const struct sigaction*) act_ptr, (struct sigaction*) oldact_ptr);
+}
+
+uint64 sys_sigret(void){
+    return -1;
 }
 

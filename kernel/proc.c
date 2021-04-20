@@ -165,6 +165,7 @@ freeproc(struct proc *p) {
     p->signal_mask = 0;
     for (i = 0; i < 32; i++) {
         p->signal_handlers[i] = (void *) SIG_DFL;
+        p->signal_mask_arr[i] = 0;
     }
     p->state = UNUSED;
 }
@@ -292,6 +293,7 @@ fork(void) {
     np->signal_mask = p->signal_mask;
     for (int i = 0; i < 32; i++) {
         np->signal_handlers[i] = p->signal_handlers[i];
+        np->signal_mask_arr[i] = p->signal_mask_arr[i];
     }
 
     // copy saved user registers.
@@ -660,8 +662,13 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
         return -1;
     struct sigaction *newact;
     either_copyin(newact,1, (uint64) act, sizeof(sigaction));
+    // Save old signal handler
+    copyout(p->pagetable, (uint64)oldact->sa_handler, (char*)p->signal_handlers[signum], sizeof(p->signal_handlers[signum]));
+    copyout(p->pagetable, (uint64)oldact->sigmask, (char*)p->signal_mask_arr[signum], sizeof(uint));
+    // Register the new signal handler for the given signal number
+    p->signal_handlers[signum] = newact->sa_handler;
+    p->signal_mask_arr[signum] = newact->sigmask;
 
-    copyout(p->pagetable, (uint64)oldact->sa_handler, (char*)p->signal_handlers[signum], sizeof(p->signal_handlers[signum]));
-    copyout(p->pagetable, (uint64)oldact->sa_handler, (char*)p->signal_handlers[signum], sizeof(p->signal_handlers[signum]));
+    return 0;
 }
 
