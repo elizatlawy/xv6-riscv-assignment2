@@ -91,10 +91,10 @@ sys_uptime(void) {
 /// Task 2.1.3
 /// Updating the signal mask of the process with the given sigmask
 uint64 sys_sigprocmask(void) {
-    uint new_mask;
-    if (argint(0, &new_mask) < 0)
+    int new_mask;
+    if (argint(0, &new_mask) < 0 || new_mask < 0)
         return -1;
-    old_mask = myproc()->signal_mask;
+    int old_mask = myproc()->signal_mask;
     myproc()->signal_mask = new_mask;
     return old_mask;
 }

@@ -2,7 +2,6 @@
 struct context {
   uint64 ra;
   uint64 sp;
-
   // callee-saved
   uint64 s0;
   uint64 s1;
@@ -113,5 +112,6 @@ struct proc {
   void* signal_handlers[32]; // Signal handlers
   struct trapframe* user_trap_backup;
 };
+
 
 

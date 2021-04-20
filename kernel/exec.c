@@ -109,9 +109,11 @@ exec(char *path, char **argv)
   safestrcpy(p->name, last, sizeof(p->name));
 
   /// Task 2.1.2
+  // clear signal handlers
   for (i = 0; i < 32; i++){
-      if (curproc->signal_handlers[i] != (void*) SIG_IGN){
-          curproc->signal_handlers[i] =  SIG_DFL;
+      if (p->signal_handlers[i] != (void*) SIG_IGN){
+          p->signal_handlers[i] =  SIG_DFL;
+          p->signal_mask_arr[i] = 0;
       }
   }
     

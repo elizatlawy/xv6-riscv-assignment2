@@ -12,4 +12,4 @@ typedef uint64 pde_t;
 struct sigaction {
     void (*sa_handler) (int);
     uint sigmask;
-}
+};

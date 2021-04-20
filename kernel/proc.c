@@ -163,7 +163,7 @@ freeproc(struct proc *p) {
     /// Task 2.1.2
     p->pending_signals = 0;
     p->signal_mask = 0;
-    for (i = 0; i < 32; i++) {
+    for (int i = 0; i < 32; i++) {
         p->signal_handlers[i] = (void *) SIG_DFL;
         p->signal_mask_arr[i] = 0;
     }
@@ -657,17 +657,17 @@ procdump(void) {
 
 /// Task 2.1.4
 int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
-    struct proc *p = myproc();
-    if(act->sigmask < 0 || act->sa_handler == 0)
-        return -1;
-    struct sigaction *newact;
-    either_copyin(newact,1, (uint64) act, sizeof(sigaction));
-    // Save old signal handler
-    copyout(p->pagetable, (uint64)oldact->sa_handler, (char*)p->signal_handlers[signum], sizeof(p->signal_handlers[signum]));
-    copyout(p->pagetable, (uint64)oldact->sigmask, (char*)p->signal_mask_arr[signum], sizeof(uint));
-    // Register the new signal handler for the given signal number
-    p->signal_handlers[signum] = newact->sa_handler;
-    p->signal_mask_arr[signum] = newact->sigmask;
+//    struct proc *p = myproc();
+//    if(act->sigmask < 0 || act->sa_handler == 0)
+//        return -1;
+//    struct sigaction *newact = 0;
+//    either_copyin(newact,1, (uint64) act, sizeof(sigaction));
+//    // Save old signal handler
+//    copyout(p->pagetable, (uint64)oldact->sa_handler, (char*) p->signal_handlers[signum], sizeof(p->signal_handlers[signum]));
+//    oldact->sigmask = p->signal_mask_arr[signum];
+//    // Register the new signal handler for the given signal number
+//    p->signal_handlers[signum] = newact->sa_handler;
+//    p->signal_mask_arr[signum] = newact->sigmask;
 
     return 0;
 }
