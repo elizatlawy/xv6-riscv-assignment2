@@ -95,7 +95,7 @@ sys_uptime(void) {
 /// Updating the signal mask of the process with the given sigmask
 uint64 sys_sigprocmask(void) {
     int new_mask;
-    if (argint(0, &new_mask) < 0 || new_mask < 0)
+    if (argint(0, &new_mask) < 0)
         return -1;
     int old_mask = myproc()->signal_mask;
     myproc()->signal_mask = new_mask;
@@ -120,6 +120,7 @@ uint64 sys_sigaction(void) {
     return sigaction(signum, (const struct sigaction*) act_ptr, (struct sigaction*) oldact_ptr);
 }
 
+/// Task 2.1.5
 uint64 sys_sigret(void){
     struct proc *p = myproc();
 

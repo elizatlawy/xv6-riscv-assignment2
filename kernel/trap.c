@@ -119,7 +119,7 @@ usertrapret(void)
   w_sepc(p->trapframe->epc);
   /// Task 2.4
   // handle pending signals before switching to userspace TODO check if it is the right place in the function
-  signal_handler();
+//  signal_handler();
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);
 
