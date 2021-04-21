@@ -577,48 +577,48 @@ wakeup(void *chan) {
 }
 
 
-int
-kill(int pid, int signum) {
-    struct proc *p;
-    // push_off(); // disable interrupts
-    for (p = proc; p < &proc[NPROC]; p++) {
-        acquire(&p->lock);
-        if (p->pid == pid) {
-            if (p->state != ZOMBIE && p->state != UNUSED && p->killed != 1) {
-                p->pending_signals = p->pending_signals | (1 << signum);
-                release(&p->lock);
-                // pop_off();
-                return 0;
-            }
-        }
-        release(&p->lock);
-    }
-    // pop_off();
-    return -1;
-}
+//int
+//kill(int pid, int signum) {
+//    struct proc *p;
+//    // push_off(); // disable interrupts
+//    for (p = proc; p < &proc[NPROC]; p++) {
+//        acquire(&p->lock);
+//        if (p->pid == pid) {
+//            if (p->state != ZOMBIE && p->state != UNUSED && p->killed != 1) {
+//                p->pending_signals = p->pending_signals | (1 << signum);
+//                release(&p->lock);
+//                // pop_off();
+//                return 0;
+//            }
+//        }
+//        release(&p->lock);
+//    }
+//    // pop_off();
+//    return -1;
+//}
 
 // Kill the process with the given pid.
 // The victim won't exit until it tries to return
 // to user space (see usertrap() in trap.c).
-//int
-//kill(int pid) {
-//    struct proc *p;
-//
-//    for (p = proc; p < &proc[NPROC]; p++) {
-//        acquire(&p->lock);
-//        if (p->pid == pid) {
-//            p->killed = 1;
-//            if (p->state == SLEEPING) {
-//                // Wake process from sleep().
-//                p->state = RUNNABLE;
-//            }
-//            release(&p->lock);
-//            return 0;
-//        }
-//        release(&p->lock);
-//    }
-//    return -1;
-//}
+int
+kill(int pid) {
+    struct proc *p;
+
+    for (p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if (p->pid == pid) {
+            p->killed = 1;
+            if (p->state == SLEEPING) {
+                // Wake process from sleep().
+                p->state = RUNNABLE;
+            }
+            release(&p->lock);
+            return 0;
+        }
+        release(&p->lock);
+    }
+    return -1;
+}
 
 // Copy to either a user address, or kernel address,
 // depending on usr_dst.

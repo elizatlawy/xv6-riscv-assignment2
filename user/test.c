@@ -5,9 +5,9 @@
 
 
 void sigprocmastk_test(){
-    uint newmask = (1 << 9);
-    uint oldmask = sigprocmask(newmask);
-    printf("parent old mask%d\n", oldmask);
+//    uint newmask = (1 << 9);
+//   int oldmask = sigprocmask(newmask);
+//    printf("parent old mask %d\n", oldmask);
 //    int pid = fork();
 //    if(pid == 0){
 //        uint newmask = (1 << 17);
@@ -19,7 +19,8 @@ void sigprocmastk_test(){
 
 int main(int argc, char *argv[]) {
 
-    sigprocmastk_test();
+//    sigprocmastk_test();
+    fprintf(1,"test");
 
 return 0;
 }
