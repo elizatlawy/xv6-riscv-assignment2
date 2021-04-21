@@ -680,21 +680,24 @@ procdump(void) {
 /// Task 2.1.4
 int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
     struct proc *p = myproc();
-    printf("act sigmask in proc.c %d:\n", act->sigmask);
-    if(act->sigmask < 0)
-        return -1;
-    if(act->sa_handler == 0){
-        return -1;
-    }
-    struct sigaction *newact = 0;
-    either_copyin(newact,1, (uint64) act, sizeof(sigaction));
+//    printf("act sigmask in proc.c %d:\n", act->sigmask);
+//    if(act->sigmask < 0)
+//        return -1;
+//    if(act->sa_handler == 0){
+//        return -1;
+//    }
+    struct sigaction newact;
+    either_copyin(&newact,1, (uint64) act, sizeof( struct sigaction));
     // Save old signal handler
-    copyout(p->pagetable, (uint64)oldact->sa_handler, (char*) p->signal_handlers[signum], sizeof(p->signal_handlers[signum]));
-    oldact->sigmask = p->signal_mask_arr[signum];
+    struct sigaction tmp_oldact;
+    tmp_oldact.sa_handler = p->signal_handlers[signum];
+    tmp_oldact.sigmask = p->signal_mask_arr[signum];
+    copyout(p->pagetable, (uint64)oldact, (char*) &tmp_oldact, sizeof(tmp_oldact));
     // Register the new signal handler for the given signal number
-    p->signal_handlers[signum] = newact->sa_handler;
-    p->signal_mask_arr[signum] = newact->sigmask;
-
+    p->signal_handlers[signum] = newact.sa_handler;
+    p->signal_mask_arr[signum] = newact.sigmask;
+    printf("in proc.c new act.sa_handler: %d\n", newact.sa_handler);
+    printf("in proc.c new act.sigmask: %d\n", newact.sigmask);
     return 0;
 }
 
