@@ -111,10 +111,10 @@ uint64 sys_sigaction(void) {
     if(signum == SIGKILL || signum == SIGSTOP)
         return -1;
     uint64 act_ptr;
-    if (argaddr(0, &act_ptr) < 0 || act_ptr == 0)
+    if (argaddr(1, &act_ptr) < 0 || act_ptr == 0)
         return -1;
     uint64 oldact_ptr;
-    if (argaddr(0, &oldact_ptr) < 0 || oldact_ptr == 0)
+    if (argaddr(2, &oldact_ptr) < 0 || oldact_ptr == 0)
         return -1;
 
     return sigaction(signum, (const struct sigaction*) act_ptr, (struct sigaction*) oldact_ptr);

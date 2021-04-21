@@ -23,12 +23,13 @@ void handler(){
 void sigaction_test(){
     struct sigaction act;
 //    int sig_kill = 9;
-    act.sa_handler = &handler;
+    act.sa_handler = 0;
     act.sigmask = (1 << 9);
+    printf("act address: %p\n", act);
+    printf("act sigmask: %d\n", act.sigmask);
     struct sigaction old_act;
     sigaction(15,&act,&old_act);
     printf("old act sigmask %d", old_act.sigmask);
-
 }
 
 int main(int argc, char *argv[]) {

@@ -680,8 +680,12 @@ procdump(void) {
 /// Task 2.1.4
 int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
     struct proc *p = myproc();
-    if(act->sigmask < 0 || act->sa_handler == 0)
+    printf("act sigmask in proc.c %d:\n", act->sigmask);
+    if(act->sigmask < 0)
         return -1;
+    if(act->sa_handler == 0){
+        return -1;
+    }
     struct sigaction *newact = 0;
     either_copyin(newact,1, (uint64) act, sizeof(sigaction));
     // Save old signal handler
