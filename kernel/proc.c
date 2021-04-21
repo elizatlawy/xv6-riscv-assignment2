@@ -680,24 +680,22 @@ procdump(void) {
 /// Task 2.1.4
 int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
     struct proc *p = myproc();
-//    printf("act sigmask in proc.c %d:\n", act->sigmask);
-//    if(act->sigmask < 0)
-//        return -1;
-//    if(act->sa_handler == 0){
-//        return -1;
-//    }
+    // copy new act form user-space to kernel-space
     struct sigaction newact;
     either_copyin(&newact,1, (uint64) act, sizeof( struct sigaction));
-    // Save old signal handler
+    // check if new cat sigmask is valid
+    if(act->sigmask < 0)
+        return -1;
+    // Save old signal handler and copy it to user-space
     struct sigaction tmp_oldact;
     tmp_oldact.sa_handler = p->signal_handlers[signum];
     tmp_oldact.sigmask = p->signal_mask_arr[signum];
     copyout(p->pagetable, (uint64)oldact, (char*) &tmp_oldact, sizeof(tmp_oldact));
-    // Register the new signal handler for the given signal number
+    // Register the new signal handler for the given signal number in the proc
     p->signal_handlers[signum] = newact.sa_handler;
     p->signal_mask_arr[signum] = newact.sigmask;
-    printf("in proc.c new act.sa_handler: %d\n", newact.sa_handler);
-    printf("in proc.c new act.sigmask: %d\n", newact.sigmask);
+//    printf("in proc.c new act.sa_handler: %d\n", newact.sa_handler);
+//    printf("in proc.c new act.sigmask: %d\n", newact.sigmask);
     return 0;
 }
 
