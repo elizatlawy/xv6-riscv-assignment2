@@ -730,7 +730,7 @@ void signal_handler(void) {
                 }
 //                 pop_off();
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-                printf("in proc.c -> signal_handler SIGKILL case, PID: %d   i = %d     handler addr: %d \n", p->pid, i, p->signal_handlers[i]);
+//                printf("in proc.c -> signal_handler SIGKILL case, PID: %d   i = %d     handler addr: %d \n", p->pid, i, p->signal_handlers[i]);
             }
             else if (i == SIGSTOP || p->signal_handlers[i] == (void*) SIGSTOP) { // SIGKILL Handling
                 p->frozen = 1;
@@ -750,7 +750,7 @@ void signal_handler(void) {
             }
             // Handling user space handler
             else{
-                printf("in proc.c -> signal_handler else case, PID:   i = %d     handler addr: %d \n", p->pid, i, p->signal_handlers[i]);
+//                printf("in proc.c -> signal_handler else case, PID:   i = %d     handler addr: %d \n", p->pid, i, p->signal_handlers[i]);
                 // Backup mask
                 p->signal_mask_backup = p->signal_mask;
                 p->signal_mask = p->signal_mask_arr[i];
@@ -763,7 +763,7 @@ void signal_handler(void) {
                 p->trapframe->a0 = i; // Save signum argument
                 p->trapframe->epc = (uint64)p->signal_handlers[i]; // move handler[i] function to epc in order to run the user handler
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero // TODO understand when we return to this line
-                printf("in proc.c -> return for sigret PID: %d p->pending_signals: %d \n", p->pid, p->pending_signals);
+//                printf("in proc.c -> return for sigret PID: %d p->pending_signals: %d \n", p->pid, p->pending_signals);
                 return; // TODO how do we continue to the next iteration, if so.
             }
         }

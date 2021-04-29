@@ -85,6 +85,8 @@ usertrap(void) {
 //
 void
 usertrapret(void) {
+    /// Task 2.4
+    // handle pending signals before switching to userspace
     signal_handler();
     struct proc *p = myproc();
     // we're about to switch the destination of traps from
@@ -113,8 +115,8 @@ usertrapret(void) {
 
     // set S Exception Program Counter to the saved user pc.
     w_sepc(p->trapframe->epc);
-    /// Task 2.4
-    // handle pending signals before switching to userspace
+//    /// Task 2.4
+//    // handle pending signals before switching to userspace
 //  signal_handler();
     // tell trampoline.S the user page table to switch to.
     uint64 satp = MAKE_SATP(p->pagetable);

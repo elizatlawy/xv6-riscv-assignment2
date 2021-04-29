@@ -36,9 +36,7 @@ stopcont() {
         wait(0);
     }
     else {
-        printf("going to sleep");
         sleep(20);
-        printf("awake form sleep");
 //        if (!flag) exit(1);
 //        printf("Back\n");
         if (flag)
