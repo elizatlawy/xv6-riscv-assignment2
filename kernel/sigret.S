@@ -1,4 +1,4 @@
-
+#include "syscall.h"
 .globl sigret_start
 .globl sigret_end
 

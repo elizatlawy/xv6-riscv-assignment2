@@ -70,13 +70,12 @@ sys_sleep(void) {
 uint64
 sys_kill(void) {
     int pid;
-//    int signum;
-
+    int signum;
     if (argint(0, &pid) < 0)
         return -1;
-//    if (argint(0, &signum) < 0 || (signum < 0 || signum > 31))
-//        return -1;
-    return kill(pid);
+    if (argint(1, &signum) < 0 || (signum < 0 || signum > 31))
+        return -1;
+    return kill(pid, signum);
 }
 
 // return how many clock tick interrupts have occurred
@@ -114,7 +113,7 @@ uint64 sys_sigaction(void) {
     if (argaddr(1, &act_ptr) < 0 || act_ptr == 0)
         return -1;
     uint64 oldact_ptr;
-    if (argaddr(2, &oldact_ptr) < 0 || oldact_ptr == 0)
+    if (argaddr(2, &oldact_ptr) < 0)
         return -1;
 
     return sigaction(signum, (const struct sigaction*) act_ptr, (struct sigaction*) oldact_ptr);
@@ -123,11 +122,8 @@ uint64 sys_sigaction(void) {
 /// Task 2.1.5
 uint64 sys_sigret(void){
     struct proc *p = myproc();
-
     // restore trapframe backup.
     memmove(p->trapframe,p->usertrap_backup,sizeof(struct trapframe));
-    p->trapframe->sp += sizeof(struct trapframe);
-
     //restore mask backup
     p->signal_mask = p->signal_mask_backup;
 

@@ -29,7 +29,7 @@ OBJS = \
   $K/kernelvec.o \
   $K/plic.o \
   $K/virtio_disk.o \
-#   $K/sigret.o
+  $K/sigret.o
 
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
@@ -85,12 +85,6 @@ $U/initcode: $U/initcode.S
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $U/initcode.out $U/initcode.o
 	$(OBJCOPY) -S -O binary $U/initcode.out $U/initcode
 	$(OBJDUMP) -S $U/initcode.o > $U/initcode.asm
-
-# $U/sigret: $U/sigret.S
-# 	$(CC) $(CFLAGS) -march=rv64g -nostdinc -I. -Ikernel -c $U/sigret.S -o $U/sigret.o
-# 	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $U/sigret.out $U/sigret.o
-# 	$(OBJCOPY) -S -O binary $U/sigret.out $U/sigret
-# 	$(OBJDUMP) -S $U/sigret.o > $U/sigret.asm
 
 tags: $(OBJS) _init
 	etags *.S *.c

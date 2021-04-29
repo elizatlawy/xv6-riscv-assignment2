@@ -16,8 +16,8 @@ int nextpid = 1;
 struct spinlock pid_lock;
 
 extern void forkret(void);
-//extern void sigret_start(void);
-//extern void sigret_end(void);
+extern void sigret_start(void);
+extern void sigret_end(void);
 
 static void freeproc(struct proc *p);
 
@@ -126,6 +126,12 @@ allocproc(void) {
         release(&p->lock);
         return 0;
     }
+    // Allocate a usertrap_backup page.
+    if ((p->usertrap_backup = (struct trapframe *) kalloc()) == 0) {
+        freeproc(p);
+        release(&p->lock);
+        return 0;
+    }
 
     // An empty user page table.
     p->pagetable = proc_pagetable(p);
@@ -152,6 +158,10 @@ freeproc(struct proc *p) {
     if (p->trapframe)
         kfree((void *) p->trapframe);
     p->trapframe = 0;
+    if (p->usertrap_backup)
+        kfree((void *) p->usertrap_backup);
+    p->usertrap_backup = 0;
+
     if (p->pagetable)
         proc_freepagetable(p->pagetable, p->sz);
     p->pagetable = 0;
@@ -577,48 +587,52 @@ wakeup(void *chan) {
 }
 
 
-//int
-//kill(int pid, int signum) {
-//    struct proc *p;
-//    // push_off(); // disable interrupts
-//    for (p = proc; p < &proc[NPROC]; p++) {
-//        acquire(&p->lock);
-//        if (p->pid == pid) {
-//            if (p->state != ZOMBIE && p->state != UNUSED && p->killed != 1) {
-//                p->pending_signals = p->pending_signals | (1 << signum);
-//                release(&p->lock);
-//                // pop_off();
-//                return 0;
-//            }
-//        }
-//        release(&p->lock);
-//    }
-//    // pop_off();
-//    return -1;
-//}
+int
+kill(int pid, int signum) {
+    struct proc *p;
+//     push_off(); // disable interrupts
+    for (p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if (p->pid == pid) {
+            if (p->state != ZOMBIE && p->state != UNUSED && p->killed != 1) {
+                p->pending_signals = p->pending_signals | (1 << signum);
+                // if the handler of this signum is SIGCONT turn on the sigcont flag
+                if(p->signal_handlers[signum] == (void*) SIGCONT)
+                    p->pending_signals = p->pending_signals | (1 << SIGCONT);
+//                printf("in kill syscall: PID: %d    signum: %d  p->pending_signals: %d\n", p->pid, signum, p->pending_signals);
+                release(&p->lock);
+//                 pop_off();
+                return 0;
+            }
+        }
+        release(&p->lock);
+    }
+//     pop_off();
+    return -1;
+}
 
 // Kill the process with the given pid.
 // The victim won't exit until it tries to return
 // to user space (see usertrap() in trap.c).
-int
-kill(int pid) {
-    struct proc *p;
-
-    for (p = proc; p < &proc[NPROC]; p++) {
-        acquire(&p->lock);
-        if (p->pid == pid) {
-            p->killed = 1;
-            if (p->state == SLEEPING) {
-                // Wake process from sleep().
-                p->state = RUNNABLE;
-            }
-            release(&p->lock);
-            return 0;
-        }
-        release(&p->lock);
-    }
-    return -1;
-}
+//int
+//kill(int pid) {
+//    struct proc *p;
+//
+//    for (p = proc; p < &proc[NPROC]; p++) {
+//        acquire(&p->lock);
+//        if (p->pid == pid) {
+//            p->killed = 1;
+//            if (p->state == SLEEPING) {
+//                // Wake process from sleep().
+//                p->state = RUNNABLE;
+//            }
+//            release(&p->lock);
+//            return 0;
+//        }
+//        release(&p->lock);
+//    }
+//    return -1;
+//}
 
 // Copy to either a user address, or kernel address,
 // depending on usr_dst.
@@ -680,18 +694,15 @@ procdump(void) {
 /// Task 2.1.4
 int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
     struct proc *p = myproc();
-    // copy new act form user-space to kernel-space
-    struct sigaction newact;
-    either_copyin(&newact,1, (uint64) act, sizeof( struct sigaction));
-    // check if new cat sigmask is valid
-    if(act->sigmask < 0)
-        return -1;
     // Save old signal handler and copy it to user-space
     struct sigaction tmp_oldact;
     tmp_oldact.sa_handler = p->signal_handlers[signum];
     tmp_oldact.sigmask = p->signal_mask_arr[signum];
     copyout(p->pagetable, (uint64)oldact, (char*) &tmp_oldact, sizeof(tmp_oldact));
     // Register the new signal handler for the given signal number in the proc
+    // copy new act form user-space to kernel-space
+    struct sigaction newact;
+    either_copyin(&newact,1, (uint64) act, sizeof( struct sigaction));
     p->signal_handlers[signum] = newact.sa_handler;
     p->signal_mask_arr[signum] = newact.sigmask;
 //    printf("in proc.c new act.sa_handler: %d\n", newact.sa_handler);
@@ -701,61 +712,60 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 
 /// Task 2.4
 /// Checking for the process's 32 possible pending signals and handling them.
-//void signal_handler(void) {
-//    struct proc *p = myproc();
-//    int pending_signal_bit;
-//    int mask_signal_bit;
-//
-//    for (int i = 0; i < 32; i++) {
-//        pending_signal_bit = p->pending_signals & (1 << i); // Check if the bit in position i of pend_sig is 1
-//        mask_signal_bit = p->signal_mask & (1 << i);   // Check if the bit in the i place at the mask is 1
-//        if (pending_signal_bit && (!mask_signal_bit || i == SIGKILL || i == SIGSTOP)) {  //SIGSTOP and SIGKILL can not be blocked
-//            if (i == SIGKILL || p->signal_handlers[i] == (void*) SIG_DFL || p->signal_handlers[i] == (void*) SIGKILL) { // SIGKILL Handling
-//                p->killed = 1;
-//                if (p->state == SLEEPING) {
-//                    // Wake up the process from sleeping
-//                    // push_off();
-//                    p->state = RUNNABLE;
-//                }
-//                // pop_off();
-//                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-//            }
-//            else if (i == SIGSTOP || p->signal_handlers[i] == (void*) SIGSTOP) { // SIGKILL Handling
-//                p->frozen = 1;
-//                while((p->pending_signals & (1<<SIGCONT)) == 0){ // while SIGCONT is not turned on
-//                    yield();
-//                }
-//                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-//            }
-//            else if (i == SIGCONT || p->signal_handlers[i] == (void*) SIGCONT) { // SIGKILL Handling
-//                p->frozen = 0;
-//                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-//            }
-//
-//            else if(p->signal_handlers[i] == (void*) SIG_IGN){ // The handler of the current signal is IGN, thus we ignore the current signal
-//                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero
-//            }
-//            // Handling user space handler
-//            else{
-//                // Backup mask
-//                p->signal_mask_backup = p->signal_mask;
-//                p->signal_mask = p->signal_mask_arr[i];
-//                // Backup trapframe
-//                struct trapframe* tf;
-//                tf = p->trapframe; // Passing a pointer to the process trapframe
-//                tf->sp -= sizeof(struct trapframe); // Save space to the trapframe
-//                memmove((void*) (tf->sp), tf, sizeof(struct trapframe)); // copy the trapframe to the stack
-//                p->usertrap_backup = (void*) (tf->sp);
-//                // change return address to sigret function
-//                tf->sp -= &sigret_start - &sigret_end; // Save a space at the stack to the sigret function
-//                memmove((void*)tf->sp,sigret_start,&sigret_end - &sigret_start); // memmove function move sigret function to sp register
-//                tf->sp -= 4; // Save place in the stack for signum argument
-//                tf->sp = i; // push signum  argument to the stack
-//                tf->sp -= 4; // Save place for the return address
-//                tf->epc = (uint64)p->signal_handlers[i]; // move handler[i] function to epc in order to run the user handler
-//                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero // TODO understand when we return to this line
-//                return; // TODO how do we continue to the next iteration, if so.
-//            }
-//        }
-//    }
-//}
+void signal_handler(void) {
+    struct proc *p = myproc();
+    int pending_signal_bit;
+    int mask_signal_bit;
+
+    for (int i = 0; i < 32; i++) {
+        pending_signal_bit = p->pending_signals & (1 << i); // Check if the bit in position i of pend_sig is 1
+        mask_signal_bit = p->signal_mask & (1 << i);   // Check if the bit in the i place at the mask is 1
+        if (pending_signal_bit && (!mask_signal_bit || i == SIGKILL || i == SIGSTOP)) {  //SIGSTOP and SIGKILL can not be blocked
+            if (i == SIGKILL || p->signal_handlers[i] == (void*) SIG_DFL || p->signal_handlers[i] == (void*) SIGKILL) { // SIGKILL Handling
+                p->killed = 1;
+                if (p->state == SLEEPING) {
+                    // Wake up the process from sleeping
+//                     push_off();
+                    p->state = RUNNABLE;
+                }
+//                 pop_off();
+                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
+                printf("in proc.c -> signal_handler SIGKILL case, PID: %d   i = %d     handler addr: %d \n", p->pid, i, p->signal_handlers[i]);
+            }
+            else if (i == SIGSTOP || p->signal_handlers[i] == (void*) SIGSTOP) { // SIGKILL Handling
+                p->frozen = 1;
+                while((p->pending_signals & (1<<SIGCONT)) == 0){ // while SIGCONT is not turned on
+                    yield();
+                }
+                p->frozen = 0;
+                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
+                p->pending_signals ^= (1 << 19); // Set the bit of the signal back to zero (bitwise xor)
+            }
+            // just in case SIGCONT received and the process is not on SIGSTOP
+            else if (i == SIGCONT || p->signal_handlers[i] == (void*) SIGCONT) { // SIGKILL Handling
+                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
+            }
+            else if(p->signal_handlers[i] == (void*) SIG_IGN){ // The handler of the current signal is IGN, thus we ignore the current signal
+                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero
+            }
+            // Handling user space handler
+            else{
+                printf("in proc.c -> signal_handler else case, PID:   i = %d     handler addr: %d \n", p->pid, i, p->signal_handlers[i]);
+                // Backup mask
+                p->signal_mask_backup = p->signal_mask;
+                p->signal_mask = p->signal_mask_arr[i];
+                // Backup trapframe
+                memmove(p->usertrap_backup,p->trapframe,sizeof(struct trapframe)); //Copy Backup
+                // change return address to sigret function
+                p->trapframe->sp -= &sigret_end - &sigret_start; // Save a space at the stack to the sigret function
+                copyout(p->pagetable, (uint64)p->trapframe->sp, (char*) sigret_start, &sigret_end - &sigret_start); // memmove function move sigret function to sp register
+                p->trapframe->ra = p->trapframe->sp; // Return address is the code on stack
+                p->trapframe->a0 = i; // Save signum argument
+                p->trapframe->epc = (uint64)p->signal_handlers[i]; // move handler[i] function to epc in order to run the user handler
+                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero // TODO understand when we return to this line
+                printf("in proc.c -> return for sigret PID: %d p->pending_signals: %d \n", p->pid, p->pending_signals);
+                return; // TODO how do we continue to the next iteration, if so.
+            }
+        }
+    }
+}
