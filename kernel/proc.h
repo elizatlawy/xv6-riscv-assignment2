@@ -27,7 +27,7 @@ struct cpu {
   int intena;                 // Were interrupts enabled before push_off()?
 
   /// task 3 - threads
-  struct thread *thread;
+  struct thread *thread;    // The thread running on this cpu, or null.
 };
 
 extern struct cpu cpus[NCPU];
@@ -90,7 +90,7 @@ struct trapframe {
 enum procstate { UNUSED, USED, ZOMBIE };
 
 enum threadstate {
-    UNUSED_T, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE_T, BLOCKED
+    UNUSED_T, USED_T, SLEEPING, RUNNABLE, RUNNING, ZOMBIE_T, BLOCKED
 };
 
 
@@ -106,9 +106,9 @@ struct thread {
     //  these are private to the threads, so t->lock need not be held.
     uint64 kstack;               // Virtual address of kernel stack
     struct trapframe *trapframe;        // Trap frame for current syscall
-    struct context *context;     // swtch() here to run process
-    struct proc *parent; // TODO: is neccery?
-
+    struct context *context;     // swtch() here to run thread
+    struct proc *parent;        // ptr to the process that holds this thread
+    struct trapframe* usertrap_backup;
 };
 
 
@@ -128,7 +128,7 @@ struct proc {
   // these are private to the process, so p->lock need not be held.
 //  uint64 kstack;               // Virtual address of kernel stack
   uint64 sz;                   // Size of process memory (bytes)
-  pagetable_t pagetable;       // User page table TODO: need for thread?
+  pagetable_t pagetable;       // User page table
 //  struct trapframe *trapframe; // data page for trampoline.S
 //  struct context context;      // swtch() here to run process
   struct file *ofile[NOFILE];  // Open files
@@ -142,10 +142,11 @@ struct proc {
   uint signal_mask_backup;
   uint signal_mask_arr[32]; // Signal masks array for each handler
   void* signal_handlers[32]; // Signal handlers
-  struct trapframe* usertrap_backup;
+//  struct trapframe* usertrap_backup;
   uint frozen; // 0 not frozen, 1 frozen
 
   struct thread threads[NTHREADS];   // thread array
+  int threads_num;               // number of current threads in array
 };
 
 

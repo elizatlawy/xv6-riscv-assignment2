@@ -15,11 +15,16 @@ struct proc *initproc;
 int nextpid = 1;
 struct spinlock pid_lock;
 
+
 extern void forkret(void);
+
 extern void sigret_start(void);
+
 extern void sigret_end(void);
 
 static void freeproc(struct proc *p);
+
+static void freethread(struct thread *t);
 
 extern char trampoline[]; // trampoline.S
 
@@ -49,12 +54,22 @@ proc_mapstacks(pagetable_t kpgtbl) {
 void
 procinit(void) {
     struct proc *p;
-
     initlock(&pid_lock, "nextpid");
     initlock(&wait_lock, "wait_lock");
     for (p = proc; p < &proc[NPROC]; p++) {
         initlock(&p->lock, "proc");
-        p->kstack = KSTACK((int) (p - proc));
+//        p->kstack = KSTACK((int) (p - proc));
+        threadinit(p);
+    }
+}
+
+// initialize the thread table at boot time.
+void
+threadinit(proc p) {
+    struct thread *t;
+    for (t = p.threads; t < &p.threads[NTHREADS]; t++) {
+        initlock(&t->lock, "thread");
+        t->kstack = KSTACK((int) (t - thread));
     }
 }
 
@@ -86,16 +101,49 @@ myproc(void) {
     return p;
 }
 
+// Return the current struct thread *, or zero if none.
+struct thread *mythread(void) {
+    push_off();
+    struct cpu *c = mycpu();
+    struct proc *t = c->thread;
+    pop_off();
+    return t;
+}
+
+
 int
 allocpid() {
     int pid;
-
     acquire(&pid_lock);
     pid = nextpid;
     nextpid = nextpid + 1;
     release(&pid_lock);
-
     return pid;
+}
+
+int allocthread(struct proc *p) {
+    struct thread *t = &p->threads[p->threads_num];
+    p->threads_num++;
+    t->parent = p;
+    t->tid = p->threads_num;
+    t->state = USED_T;
+
+    // Allocate a trapframe page.
+    if ((t->trapframe = (struct trapframe *) kalloc()) == 0) {
+        freethread(t);
+        return 0;
+    }
+    // Allocate a usertrap_backup page.
+    if ((t->usertrap_backup = (struct trapframe *) kalloc()) == 0) {
+        freethread(t);
+        return 0;
+    }
+    // Set up new context to start executing at forkret,
+    // which returns to user space.
+    memset(&t->context, 0, sizeof(t->context));
+    t->context.ra = (uint64) forkret;
+    t->context.sp = t->kstack + PGSIZE;
+    return 1;
 }
 
 // Look in the process table for an UNUSED proc.
@@ -105,7 +153,6 @@ allocpid() {
 static struct proc *
 allocproc(void) {
     struct proc *p;
-
     for (p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
         if (p->state == UNUSED) {
@@ -115,24 +162,27 @@ allocproc(void) {
         }
     }
     return 0;
-
     found:
     p->pid = allocpid();
     p->state = USED;
-
-    // Allocate a trapframe page.
-    if ((p->trapframe = (struct trapframe *) kalloc()) == 0) {
+    if (!allocthread(p)) {
         freeproc(p);
         release(&p->lock);
         return 0;
     }
-    // Allocate a usertrap_backup page.
-    if ((p->usertrap_backup = (struct trapframe *) kalloc()) == 0) {
-        freeproc(p);
-        release(&p->lock);
-        return 0;
-    }
-
+//    // Allocate a trapframe page.
+//    if ((p->trapframe = (struct trapframe *) kalloc()) == 0) {
+//        freeproc(p);
+//        release(&p->lock);
+//        return 0;
+//    }
+//    // Allocate a usertrap_backup page.
+//    if ((p->usertrap_backup = (struct trapframe *) kalloc()) == 0) {
+//        freeproc(p);
+//        release(&p->lock);
+//        return 0;
+//    }
+//
     // An empty user page table.
     p->pagetable = proc_pagetable(p);
     if (p->pagetable == 0) {
@@ -140,14 +190,28 @@ allocproc(void) {
         release(&p->lock);
         return 0;
     }
-
-    // Set up new context to start executing at forkret,
-    // which returns to user space.
-    memset(&p->context, 0, sizeof(p->context));
-    p->context.ra = (uint64) forkret;
-    p->context.sp = p->kstack + PGSIZE;
-
+//
+//    // Set up new context to start executing at forkret,
+//    // which returns to user space.
+//    memset(&p->context, 0, sizeof(p->context));
+//    p->context.ra = (uint64) forkret;
+//    p->context.sp = p->kstack + PGSIZE;
     return p;
+}
+
+static void
+freethread(struct thread *t) {
+    if (t->trapframe)
+        kfree((void *) t->trapframe);
+    t->trapframe = 0;
+    if (t->usertrap_backup)
+        kfree((void *) t->usertrap_backup);
+    t->usertrap_backup = 0;
+    t->tid = 0;
+    t->parent = 0;
+    t->chan = 0;
+    t->killed = 0;
+    t->xstate = 0;
 }
 
 // free a proc structure and the data hanging from it,
@@ -155,23 +219,23 @@ allocproc(void) {
 // p->lock must be held.
 static void
 freeproc(struct proc *p) {
-    if (p->trapframe)
-        kfree((void *) p->trapframe);
-    p->trapframe = 0;
-    if (p->usertrap_backup)
-        kfree((void *) p->usertrap_backup);
-    p->usertrap_backup = 0;
-
+//    if (p->trapframe)
+//        kfree((void *) p->trapframe);
+//    p->trapframe = 0;
+//    if (p->usertrap_backup)
+//        kfree((void *) p->usertrap_backup);
+//    p->usertrap_backup = 0;
     if (p->pagetable)
         proc_freepagetable(p->pagetable, p->sz);
-    p->pagetable = 0;
+//    p->pagetable = 0;
     p->sz = 0;
     p->pid = 0;
     p->parent = 0;
     p->name[0] = 0;
-    p->chan = 0;
+//    p->chan = 0;
     p->killed = 0;
-    p->xstate = 0;
+//    p->xstate = 0;
+    p->threads_num = 0;
     /// Task 2.1.2
     p->pending_signals = 0;
     p->signal_mask = 0;
@@ -239,8 +303,8 @@ uchar initcode[] = {
 void
 userinit(void) {
     struct proc *p;
-
     p = allocproc();
+    struct thread *t = &p->threads[0];
     initproc = p;
 
     // allocate one user page and copy init's instructions
@@ -249,14 +313,14 @@ userinit(void) {
     p->sz = PGSIZE;
 
     // prepare for the very first "return" from kernel to user.
-    p->trapframe->epc = 0;      // user program counter
-    p->trapframe->sp = PGSIZE;  // user stack pointer
+    t->trapframe->epc = 0;      // user program counter
+    t->trapframe->sp = PGSIZE;  // user stack pointer
 
     safestrcpy(p->name, "initcode", sizeof(p->name));
     p->cwd = namei("/");
 
-    p->state = RUNNABLE;
-
+    p->state = USED;
+    t->state = RUNNABLE;
     release(&p->lock);
 }
 
@@ -266,7 +330,6 @@ int
 growproc(int n) {
     uint sz;
     struct proc *p = myproc();
-
     sz = p->sz;
     if (n > 0) {
         if ((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
@@ -286,11 +349,12 @@ fork(void) {
     int i, pid;
     struct proc *np;
     struct proc *p = myproc();
-
+    struct thread *currthread = mythread();
     // Allocate process.
     if ((np = allocproc()) == 0) {
         return -1;
     }
+    struct thread *nt = &np->threads[0];
 
     // Copy user memory from parent to child.
     if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0) {
@@ -299,7 +363,6 @@ fork(void) {
         return -1;
     }
     np->sz = p->sz;
-
     /// Task 2.1.2
     // Copy parent signals to child
     np->signal_mask = p->signal_mask;
@@ -309,10 +372,10 @@ fork(void) {
     }
 
     // copy saved user registers.
-    *(np->trapframe) = *(p->trapframe);
+    *(nt->trapframe) = *(currthread->trapframe);
 
     // Cause fork to return 0 in the child.
-    np->trapframe->a0 = 0;
+    nt->trapframe->a0 = 0;
 
     // increment reference counts on open file descriptors.
     for (i = 0; i < NOFILE; i++)
@@ -328,12 +391,11 @@ fork(void) {
 
     acquire(&wait_lock);
     np->parent = p;
+    nt->parent = np;
     release(&wait_lock);
-
     acquire(&np->lock);
-    np->state = RUNNABLE;
+    nt->state = RUNNABLE;
     release(&np->lock);
-
     return pid;
 }
 
@@ -342,7 +404,6 @@ fork(void) {
 void
 reparent(struct proc *p) {
     struct proc *pp;
-
     for (pp = proc; pp < &proc[NPROC]; pp++) {
         if (pp->parent == p) {
             pp->parent = initproc;
@@ -357,10 +418,87 @@ reparent(struct proc *p) {
 void
 exit(int status) {
     struct proc *p = myproc();
+    struct thread *t;
+//    if (p == initproc)
+//        panic("init exiting");
+//    // Close all open files.
+//    for (int fd = 0; fd < NOFILE; fd++) {
+//        if (p->ofile[fd]) {
+//            struct file *f = p->ofile[fd];
+//            fileclose(f);
+//            p->ofile[fd] = 0;
+//        }
+//    }
+    if (mythread()->killed == 1) {
+        exit_thread(status);
+    } else {
+        for (int i = 0; i < p->threads_num; i++) {
+            t = &p->threads[i];
+            t->killed = 1;
+            // Wake process from sleep if necessary.
+            if (t->state == SLEEPING)
+                t->state = RUNNABLE;
+        }
 
+//    begin_op();
+//    iput(p->cwd);
+//    end_op();
+//    p->cwd = 0;
+//
+//    acquire(&wait_lock);
+//
+//    // Give any children to init.
+//    reparent(p);
+//
+//    // Parent might be sleeping in wait().
+//    wakeup(p->parent);
+//
+//    acquire(&p->lock);
+//
+//    p->xstate = status;
+//    p->state = ZOMBIE;
+//
+//    release(&wait_lock);
+//
+//    // Jump into the scheduler, never to return.
+//    sched();
+//    panic("zombie exit");
+    }
+
+    void
+    exit_thread(int status) {
+        struct thread *t;
+        struct proc *currproc = myproc();
+        int active_threads = 0;
+
+        for (int i = 0; i < currproc->t_num; ++i) {
+            t = &currproc->threads[i];
+            if (t->state != ZOMBIE_T && t->state != UNUSED_T)
+                active_threads++;
+        }
+
+        if (active_threads == 0) panic("No active_threads!");
+
+        // TODO: should it be >= 2?
+        if (active_threads == 2) {
+            wakeup(myproc());
+        }
+        if (active_threads == 1) {
+            exit_process(status);
+        } else {
+            wakeup(mythread());
+            mythread()->xstate = status;
+            mythread()->state = ZOMBIE_T;
+            sched();
+        }
+    }
+}
+
+void
+exit_process(int status) {
+    struct proc *p = myproc();
     if (p == initproc)
         panic("init exiting");
-
     // Close all open files.
     for (int fd = 0; fd < NOFILE; fd++) {
         if (p->ofile[fd]) {
@@ -376,7 +514,6 @@ exit(int status) {
     p->cwd = 0;
 
     acquire(&wait_lock);
-
     // Give any children to init.
     reparent(p);
 
@@ -384,15 +521,15 @@ exit(int status) {
     wakeup(p->parent);
 
     acquire(&p->lock);
-
     p->xstate = status;
+    // TODO: Should we keep killed in p or just in t? thers is no use for p.killed
+    p->killed = 1;
     p->state = ZOMBIE;
-
     release(&wait_lock);
-
     // Jump into the scheduler, never to return.
     sched();
     panic("zombie exit");
+
 }
 
 // Wait for a child process to exit and return its pid.
@@ -597,7 +734,7 @@ kill(int pid, int signum) {
             if (p->state != ZOMBIE && p->state != UNUSED && p->killed != 1) {
                 p->pending_signals = p->pending_signals | (1 << signum);
                 // if the handler of this signum is SIGCONT turn on the sigcont flag
-                if(p->signal_handlers[signum] == (void*) SIGCONT)
+                if (p->signal_handlers[signum] == (void *) SIGCONT)
                     p->pending_signals = p->pending_signals | (1 << SIGCONT);
 //                printf("in kill syscall: PID: %d    signum: %d  p->pending_signals: %d\n", p->pid, signum, p->pending_signals);
                 release(&p->lock);
@@ -698,11 +835,11 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
     struct sigaction tmp_oldact;
     tmp_oldact.sa_handler = p->signal_handlers[signum];
     tmp_oldact.sigmask = p->signal_mask_arr[signum];
-    copyout(p->pagetable, (uint64)oldact, (char*) &tmp_oldact, sizeof(tmp_oldact));
+    copyout(p->pagetable, (uint64) oldact, (char *) &tmp_oldact, sizeof(tmp_oldact));
     // Register the new signal handler for the given signal number in the proc
     // copy new act form user-space to kernel-space
     struct sigaction newact;
-    either_copyin(&newact,1, (uint64) act, sizeof( struct sigaction));
+    either_copyin(&newact, 1, (uint64) act, sizeof(struct sigaction));
     p->signal_handlers[signum] = newact.sa_handler;
     p->signal_mask_arr[signum] = newact.sigmask;
 //    printf("in proc.c new act.sa_handler: %d\n", newact.sa_handler);
@@ -720,8 +857,10 @@ void signal_handler(void) {
     for (int i = 0; i < 32; i++) {
         pending_signal_bit = p->pending_signals & (1 << i); // Check if the bit in position i of pend_sig is 1
         mask_signal_bit = p->signal_mask & (1 << i);   // Check if the bit in the i place at the mask is 1
-        if (pending_signal_bit && (!mask_signal_bit || i == SIGKILL || i == SIGSTOP)) {  //SIGSTOP and SIGKILL can not be blocked
-            if (i == SIGKILL || p->signal_handlers[i] == (void*) SIG_DFL || p->signal_handlers[i] == (void*) SIGKILL) { // SIGKILL Handling
+        if (pending_signal_bit &&
+            (!mask_signal_bit || i == SIGKILL || i == SIGSTOP)) {  //SIGSTOP and SIGKILL can not be blocked
+            if (i == SIGKILL || p->signal_handlers[i] == (void *) SIG_DFL ||
+                p->signal_handlers[i] == (void *) SIGKILL) { // SIGKILL Handling
                 p->killed = 1;
                 if (p->state == SLEEPING) {
                     // Wake up the process from sleeping
@@ -731,38 +870,39 @@ void signal_handler(void) {
 //                 pop_off();
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
 //                printf("in proc.c -> signal_handler SIGKILL case, PID: %d   i = %d     handler addr: %d \n", p->pid, i, p->signal_handlers[i]);
-            }
-            else if (i == SIGSTOP || p->signal_handlers[i] == (void*) SIGSTOP) { // SIGKILL Handling
+            } else if (i == SIGSTOP || p->signal_handlers[i] == (void *) SIGSTOP) { // SIGKILL Handling
                 p->frozen = 1;
-                while((p->pending_signals & (1<<SIGCONT)) == 0){ // while SIGCONT is not turned on
+                while ((p->pending_signals & (1 << SIGCONT)) == 0) { // while SIGCONT is not turned on
                     yield();
                 }
                 p->frozen = 0;
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
                 p->pending_signals ^= (1 << 19); // Set the bit of the signal back to zero (bitwise xor)
             }
-            // just in case SIGCONT received and the process is not on SIGSTOP
-            else if (i == SIGCONT || p->signal_handlers[i] == (void*) SIGCONT) { // SIGKILL Handling
+                // just in case SIGCONT received and the process is not on SIGSTOP
+            else if (i == SIGCONT || p->signal_handlers[i] == (void *) SIGCONT) { // SIGKILL Handling
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-            }
-            else if(p->signal_handlers[i] == (void*) SIG_IGN){ // The handler of the current signal is IGN, thus we ignore the current signal
+            } else if (p->signal_handlers[i] ==
+                       (void *) SIG_IGN) { // The handler of the current signal is IGN, thus we ignore the current signal
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero
             }
-            // Handling user space handler
-            else{
+                // Handling user space handler
+            else {
 //                printf("in proc.c -> signal_handler else case, PID:   i = %d     handler addr: %d \n", p->pid, i, p->signal_handlers[i]);
                 // Backup mask
                 p->signal_mask_backup = p->signal_mask;
                 p->signal_mask = p->signal_mask_arr[i];
                 // Backup trapframe
-                memmove(p->usertrap_backup,p->trapframe,sizeof(struct trapframe)); //Copy Backup
+                memmove(p->usertrap_backup, p->trapframe, sizeof(struct trapframe)); //Copy Backup
                 // change return address to sigret function
                 p->trapframe->sp -= &sigret_end - &sigret_start; // Save a space at the stack to the sigret function
-                copyout(p->pagetable, (uint64)p->trapframe->sp, (char*) sigret_start, &sigret_end - &sigret_start); // memmove function move sigret function to sp register
+                copyout(p->pagetable, (uint64) p->trapframe->sp, (char *) sigret_start,
+                        &sigret_end - &sigret_start); // memmove function move sigret function to sp register
                 p->trapframe->ra = p->trapframe->sp; // Return address is the code on stack
                 p->trapframe->a0 = i; // Save signum argument
-                p->trapframe->epc = (uint64)p->signal_handlers[i]; // move handler[i] function to epc in order to run the user handler
-                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero // TODO understand when we return to this line
+                p->trapframe->epc = (uint64) p->signal_handlers[i]; // move handler[i] function to epc in order to run the user handler
+                p->pending_signals ^= (1
+                        << i); // Set the bit of the signal back to zero // TODO understand when we return to this line
 //                printf("in proc.c -> return for sigret PID: %d p->pending_signals: %d \n", p->pid, p->pending_signals);
                 return; // TODO how do we continue to the next iteration, if so.
             }
