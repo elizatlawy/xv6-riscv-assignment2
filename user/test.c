@@ -129,9 +129,9 @@ void fork_test(){
 }
 
 int main(int argc, char *argv[]) {
-    fork_test();
-//    stopcont();
 
+//    fork_test();
+    stopcont();
 //    for (int i = 0; i < 5; i++) {
 //        int child_pid = fork();
 //        if (child_pid < 0) {

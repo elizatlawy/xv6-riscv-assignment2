@@ -159,12 +159,12 @@ static struct proc *
 allocproc(void) {
     struct proc *p;
     for (p = proc; p < &proc[NPROC]; p++) {
-        printf("in allocproc start acquire to PID: %d \n", p->pid);
+//        printf("in allocproc start acquire to PID: %d \n", p->pid);
         acquire(&p->lock);
         if (p->state == UNUSED) {
             goto found;
         } else {
-            printf("in allocproc start release to PID: %d \n", p->pid);
+//            printf("in allocproc start release to PID: %d \n", p->pid);
             release(&p->lock);
 
         }
@@ -175,7 +175,7 @@ allocproc(void) {
     p->state = USED;
     if (!allocthread(p)) {
         freeproc(p);
-        printf("in allocproc start release to PID: %d \n", p->pid);
+//        printf("in allocproc start release to PID: %d \n", p->pid);
         release(&p->lock);
 
         return 0;
@@ -197,7 +197,7 @@ allocproc(void) {
     p->pagetable = proc_pagetable(p);
     if (p->pagetable == 0) {
         freeproc(p);
-        printf("in allocproc start release to PID: %d \n", p->pid);
+//        printf("in allocproc start release to PID: %d \n", p->pid);
         release(&p->lock);
         return 0;
     }
@@ -238,7 +238,7 @@ freeproc(struct proc *p) {
 //    p->usertrap_backup = 0;
     if (p->pagetable)
         proc_freepagetable(p->pagetable, p->sz);
-//    p->pagetable = 0;
+    p->pagetable = 0;
     p->sz = 0;
     p->pid = 0;
     p->parent = 0;
@@ -317,7 +317,6 @@ userinit(void) {
     p = allocproc();
     struct thread *t = &p->threads[0];
     initproc = p;
-
     // allocate one user page and copy init's instructions
     // and data into it.
     uvminit(p->pagetable, initcode, sizeof(initcode));
@@ -330,7 +329,7 @@ userinit(void) {
     safestrcpy(p->name, "initcode", sizeof(p->name));
     p->cwd = namei("/");
     t->state = RUNNABLE;
-    printf("in userinit() start release to PID: %d \n", p->pid);
+//    printf("in userinit() start release to PID: %d \n", p->pid);
     release(&p->lock);
     release(&t->lock);
 }
@@ -342,7 +341,7 @@ growproc(int n) {
     uint sz;
     struct proc *p = myproc();
 //    printf("in growproc start acquire to PID: %d \n", p->pid);
-    acquire(&p->lock);
+//    acquire(&p->lock);
     sz = p->sz;
     if (n > 0) {
         if ((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
@@ -353,7 +352,7 @@ growproc(int n) {
     }
     p->sz = sz;
 //    printf("in growproc() start release to PID: %d \n", p->pid);
-    release(&p->lock);
+//    release(&p->lock);
     return 0;
 }
 
@@ -406,7 +405,6 @@ fork(void) {
 
     acquire(&wait_lock);
     np->parent = p;
-    printf("PID: %d has parent with PID: %d\n", np->pid, np->parent->pid);
     release(&np->lock);
     nt->parent = np;
     release(&wait_lock);
@@ -433,6 +431,7 @@ reparent(struct proc *p) {
 // until its parent calls wait().
 void
 exit(int status) {
+//    printf("entered exit() with status: %d\n", status);
     struct proc *p = myproc();
     struct thread *t;
 //    if (p == initproc)
@@ -534,13 +533,13 @@ exit_process(int status) {
     reparent(p);
     // Parent might be sleeping in wait().
     wakeup(p->parent);
-    printf("in exit_process start acquire to PID: %d \n", p->pid);
+//    printf("in exit_process start acquire to PID: %d \n", p->pid);
     acquire(&p->lock);
     p->xstate = status;
     // TODO: Should we keep killed in p or just in t? thers is no use for p.killed
     p->killed = 1;
     p->state = ZOMBIE;
-    printf("in exit_process() start release to PID: %d \n", p->pid);
+//    printf("in exit_process() start release to PID: %d \n", p->pid);
     release(&p->lock);
 
     acquire(&t->lock);
@@ -668,6 +667,7 @@ sched(void) {
     if (!holding(&t->lock))
 //        panic("sched p->lock");
         panic("sched t->lock");
+    // checl if the current CPU holds only 1 lock
     if (mycpu()->noff != 1)
         panic("sched locks");
     if (t->state == RUNNING)
@@ -762,7 +762,7 @@ kill(int pid, int signum) {
     struct proc *p;
 //     push_off(); // disable interrupts
     for (p = proc; p < &proc[NPROC]; p++) {
-        printf("in kill() start acquire to PID: %d \n", p->pid);
+//        printf("in kill() start acquire to PID: %d \n", p->pid);
         acquire(&p->lock);
         if (p->pid == pid) {
             if (p->state != ZOMBIE && p->state != UNUSED && p->killed != 1) {
@@ -771,13 +771,13 @@ kill(int pid, int signum) {
                 if (p->signal_handlers[signum] == (void *) SIGCONT)
                     p->pending_signals = p->pending_signals | (1 << SIGCONT);
 //                printf("in kill syscall: PID: %d    signum: %d  p->pending_signals: %d\n", p->pid, signum, p->pending_signals);
-                printf("in kill() start release to PID: %d \n", p->pid);
+//                printf("in kill() start release to PID: %d \n", p->pid);
                 release(&p->lock);
 //                 pop_off();
                 return 0;
             }
         }
-        printf("in kill() start release to PID: %d \n", p->pid);
+//        printf("in kill() start release to PID: %d \n", p->pid);
         release(&p->lock);
     }
 //     pop_off();
