@@ -34,8 +34,7 @@ stopcont() {
     if (id_child) { //father
         kill(id_child, 10);
         wait(0);
-    }
-    else {
+    } else {
         sleep(20);
 //        if (!flag) exit(1);
 //        printf("Back\n");
@@ -91,7 +90,7 @@ void sigaction_test() {
     printf("old act2 address %d\n", old_act2.sa_handler);
 }
 
-void kill_test(){
+void kill_test() {
     int child_pid = fork();
     if (child_pid < 0) {
         printf("fork failed\n");
@@ -101,25 +100,57 @@ void kill_test(){
         kill(child_pid, 9);
         wait(0);
         printf("exit wait -> child killed \n");
-    }
-    else { // child
+    } else { // child
         sleep(100000);
     }
 }
-void many_kills(){
-    for( int i = 0; i < 3; i++){
+
+void many_kills() {
+    for (int i = 0; i < 3; i++) {
         int child_pid = fork();
-        if(child_pid == 0)
-           sleep(410065408);
+        if (child_pid == 0)
+            sleep(410065408);
     }
 }
+
+void fork_test(){
+    int child_pid = fork();
+    if (child_pid < 0) {
+        printf("fork failed\n");
+    }
+    else if (child_pid > 0) { // father
+//        printf("new child PID is: %d\n", child_pid);
+        int status = 0;
+        wait(&status);
+        printf("Child PID: %d exit with status: %d\n",child_pid, status);
+    } else { // child
+        printf("new child created\n");
+    }
+}
+
 int main(int argc, char *argv[]) {
-    stopcont();
+    fork_test();
+//    stopcont();
+
+//    for (int i = 0; i < 5; i++) {
+//        int child_pid = fork();
+//        if (child_pid < 0) {
+//            printf("fork failed\n");
+//        }
+//        if (child_pid > 0) { // father
+////        printf("new child PID is: %d\n", child_pid);
+//            int status = 0;
+//            wait(&status);
+//            printf("Child PID: %d exit with status: %d\n",child_pid, status);
+//        }
+//        if (child_pid == 0) { // child
+//            printf("new child PID: %d created\n", child_pid);
+//        }
+//    }
 //    sigaction_test();
 //    sigprocmastk_test();
 //    kill_test();
 //    many_kills();
-
-    exit(0);
+        exit(0);
 }
 

@@ -61,6 +61,7 @@ procinit(void) {
 //        p->kstack = KSTACK((int) (p - proc));
         // TODO: should it be p - proc?
         p->threads[0].kstack = KSTACK((int) (p - proc));
+        initlock(&(p->threads[0].lock), "Thread");
     }
 }
 
@@ -106,7 +107,7 @@ myproc(void) {
 struct thread *mythread(void) {
     push_off();
     struct cpu *c = mycpu();
-    struct proc *t = c->thread;
+    struct thread *t = c->thread;
     pop_off();
     return t;
 }
@@ -121,10 +122,13 @@ allocpid() {
     release(&pid_lock);
     return pid;
 }
+
 // TODO: ADD T->LOCK HERE AFTER WE ADD THREAD SYSTEMCALLS
 int allocthread(struct proc *p) {
     struct thread *t = &p->threads[p->threads_num];
+
     p->threads_num++;
+    acquire(&t->lock);
     t->parent = p;
     t->tid = p->threads_num;
     t->state = USED_T;
@@ -155,11 +159,14 @@ static struct proc *
 allocproc(void) {
     struct proc *p;
     for (p = proc; p < &proc[NPROC]; p++) {
+        printf("in allocproc start acquire to PID: %d \n", p->pid);
         acquire(&p->lock);
         if (p->state == UNUSED) {
             goto found;
         } else {
+            printf("in allocproc start release to PID: %d \n", p->pid);
             release(&p->lock);
+
         }
     }
     return 0;
@@ -168,7 +175,9 @@ allocproc(void) {
     p->state = USED;
     if (!allocthread(p)) {
         freeproc(p);
+        printf("in allocproc start release to PID: %d \n", p->pid);
         release(&p->lock);
+
         return 0;
     }
 //    // Allocate a trapframe page.
@@ -188,6 +197,7 @@ allocproc(void) {
     p->pagetable = proc_pagetable(p);
     if (p->pagetable == 0) {
         freeproc(p);
+        printf("in allocproc start release to PID: %d \n", p->pid);
         release(&p->lock);
         return 0;
     }
@@ -235,7 +245,7 @@ freeproc(struct proc *p) {
     p->name[0] = 0;
 //    p->chan = 0;
     p->killed = 0;
-//    p->xstate = 0;
+    p->xstate = 0;
     p->threads_num = 0;
     /// Task 2.1.2
     p->pending_signals = 0;
@@ -320,7 +330,9 @@ userinit(void) {
     safestrcpy(p->name, "initcode", sizeof(p->name));
     p->cwd = namei("/");
     t->state = RUNNABLE;
+    printf("in userinit() start release to PID: %d \n", p->pid);
     release(&p->lock);
+    release(&t->lock);
 }
 
 // Grow or shrink user memory by n bytes.
@@ -329,6 +341,7 @@ int
 growproc(int n) {
     uint sz;
     struct proc *p = myproc();
+//    printf("in growproc start acquire to PID: %d \n", p->pid);
     acquire(&p->lock);
     sz = p->sz;
     if (n > 0) {
@@ -339,6 +352,7 @@ growproc(int n) {
         sz = uvmdealloc(p->pagetable, sz, sz + n);
     }
     p->sz = sz;
+//    printf("in growproc() start release to PID: %d \n", p->pid);
     release(&p->lock);
     return 0;
 }
@@ -388,15 +402,16 @@ fork(void) {
 
     pid = np->pid;
 
-    release(&np->lock);
+
 
     acquire(&wait_lock);
     np->parent = p;
+    printf("PID: %d has parent with PID: %d\n", np->pid, np->parent->pid);
+    release(&np->lock);
     nt->parent = np;
     release(&wait_lock);
-    acquire(&np->lock);
     nt->state = RUNNABLE;
-    release(&np->lock);
+    release(&nt->lock);
     return pid;
 }
 
@@ -440,6 +455,7 @@ exit(int status) {
             if (t->state == SLEEPING)
                 t->state = RUNNABLE;
         }
+    }
 
 //    begin_op();
 //    iput(p->cwd);
@@ -464,16 +480,16 @@ exit(int status) {
 //    // Jump into the scheduler, never to return.
 //    sched();
 //    panic("zombie exit");
-    }
 }
+
 
 void
 exit_thread(int status) {
     struct thread *t;
     struct proc *p = myproc();
     int active_threads = 0;
-
-    for (int i = 0; i < p->t_num; ++i) {
+    // check if the parent of t has other active threads
+    for (int i = 0; i < p->threads_num; ++i) {
         t = &p->threads[i];
         if (t->state != ZOMBIE_T && t->state != UNUSED_T)
             active_threads++;
@@ -488,18 +504,16 @@ exit_thread(int status) {
         exit_process(status);
     } else {
         wakeup(mythread());
-        acquire(&t->lock);
+        acquire(&mythread()->lock);
         mythread()->xstate = status;
         mythread()->state = ZOMBIE_T;
         sched();
     }
 }
-
-}
-
 void
 exit_process(int status) {
     struct proc *p = myproc();
+    struct thread *t = mythread();
     if (p == initproc)
         panic("init exiting");
     // Close all open files.
@@ -510,7 +524,6 @@ exit_process(int status) {
             p->ofile[fd] = 0;
         }
     }
-
     begin_op();
     iput(p->cwd);
     end_op();
@@ -519,17 +532,20 @@ exit_process(int status) {
     acquire(&wait_lock);
     // Give any children to init.
     reparent(p);
-
     // Parent might be sleeping in wait().
     wakeup(p->parent);
-
+    printf("in exit_process start acquire to PID: %d \n", p->pid);
     acquire(&p->lock);
     p->xstate = status;
     // TODO: Should we keep killed in p or just in t? thers is no use for p.killed
     p->killed = 1;
     p->state = ZOMBIE;
+    printf("in exit_process() start release to PID: %d \n", p->pid);
     release(&p->lock);
 
+    acquire(&t->lock);
+    t->xstate = status;
+    t->state = ZOMBIE_T;
     release(&wait_lock);
     // Jump into the scheduler, never to return.
     sched();
@@ -545,7 +561,6 @@ wait(uint64 addr) {
     int havekids, pid;
     struct proc *p = myproc();
     struct thread *t;
-
     acquire(&wait_lock);
     for (;;) {
         // Scan through table looking for exited children.
@@ -564,9 +579,9 @@ wait(uint64 addr) {
                         release(&wait_lock);
                         return -1;
                     }
-                    for(int i = 0; i < np->threads_num; i++){
+                    for (int i = 0; i < np->threads_num; i++) {
                         t = &np->threads[i];
-                        if(t->state == ZOMBIE_T){
+                        if (t->state == ZOMBIE_T) {
                             freethread(t);
                         }
                     }
@@ -609,10 +624,10 @@ scheduler(void) {
         for (p = proc; p < &proc[NPROC]; p++) {
 //            acquire(&p->lock);
             if (p->state == USED) {
-                for (int i = 0; i < p->threads_num; i++){
-                    struct thread *t = p->threads[i];
+                for (int i = 0; i < p->threads_num; i++) {
+                    struct thread *t = &p->threads[i];
                     acquire(&t->lock);
-                    if (t->state == RUNNABLE){
+                    if (t->state == RUNNABLE) {
                         // Switch to chosen process.  It is the process's job
                         // to release its lock and then reacquire it
                         // before jumping back to us.
@@ -730,7 +745,7 @@ wakeup(void *chan) {
     struct proc *p;
     for (p = proc; p < &proc[NPROC]; p++) {
         if (p != myproc()) {
-            for ( i = 0; i < p->threads_num; i++){
+            for (int i = 0; i < p->threads_num; i++) {
                 struct thread *t = &p->threads[i];
                 acquire(&t->lock);
                 if (t->state == SLEEPING && t->chan == chan) {
@@ -747,6 +762,7 @@ kill(int pid, int signum) {
     struct proc *p;
 //     push_off(); // disable interrupts
     for (p = proc; p < &proc[NPROC]; p++) {
+        printf("in kill() start acquire to PID: %d \n", p->pid);
         acquire(&p->lock);
         if (p->pid == pid) {
             if (p->state != ZOMBIE && p->state != UNUSED && p->killed != 1) {
@@ -755,11 +771,13 @@ kill(int pid, int signum) {
                 if (p->signal_handlers[signum] == (void *) SIGCONT)
                     p->pending_signals = p->pending_signals | (1 << SIGCONT);
 //                printf("in kill syscall: PID: %d    signum: %d  p->pending_signals: %d\n", p->pid, signum, p->pending_signals);
+                printf("in kill() start release to PID: %d \n", p->pid);
                 release(&p->lock);
 //                 pop_off();
                 return 0;
             }
         }
+        printf("in kill() start release to PID: %d \n", p->pid);
         release(&p->lock);
     }
 //     pop_off();
@@ -881,8 +899,8 @@ void signal_handler(void) {
             (!mask_signal_bit || i == SIGKILL || i == SIGSTOP)) {  //SIGSTOP and SIGKILL can not be blocked
             if (i == SIGKILL || p->signal_handlers[i] == (void *) SIG_DFL ||
                 p->signal_handlers[i] == (void *) SIGKILL) { // SIGKILL Handling
-                for (int i = 0; i < p->threads_num; i++){
-                    struct thread curr_t = p->threads[i];
+                for (int i = 0; i < p->threads_num; i++) {
+                    struct thread *curr_t = &p->threads[i];
                     acquire(&t->lock);
                     curr_t->killed = 1;
                     if (curr_t->state == SLEEPING) {
@@ -938,7 +956,8 @@ void signal_handler(void) {
                 t->trapframe->ra = t->trapframe->sp; // Return address is the code on stack
                 t->trapframe->a0 = i; // Save signum argument
                 t->trapframe->epc = (uint64) p->signal_handlers[i]; // move handler[i] function to epc in order to run the user handler
-                p->pending_signals ^= (1<< i); // Set the bit of the signal back to zero // TODO understand when we return to this line
+                p->pending_signals ^= (1
+                        << i); // Set the bit of the signal back to zero // TODO understand when we return to this line
 //                release(&p->lock);
 //                printf("in proc.c -> return for sigret PID: %d p->pending_signals: %d \n", p->pid, p->pending_signals);
                 return; // TODO how do we continue to the next iteration, if so.
