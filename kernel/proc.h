@@ -106,7 +106,7 @@ struct thread {
     //  these are private to the threads, so t->lock need not be held.
     uint64 kstack;               // Virtual address of kernel stack
     struct trapframe *trapframe;        // Trap frame for current syscall
-    struct context *context;     // swtch() here to run thread
+    struct context context;     // swtch() here to run thread
     struct proc *parent;        // ptr to the process that holds this thread
     struct trapframe* usertrap_backup;
 };

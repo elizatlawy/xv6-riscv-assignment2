@@ -59,19 +59,20 @@ procinit(void) {
     for (p = proc; p < &proc[NPROC]; p++) {
         initlock(&p->lock, "proc");
 //        p->kstack = KSTACK((int) (p - proc));
-        threadinit(p);
+        // TODO: should it be p - proc?
+        p->threads[0].kstack = KSTACK((int) (p - proc));
     }
 }
 
-// initialize the thread table at boot time.
-void
-threadinit(proc p) {
-    struct thread *t;
-    for (t = p.threads; t < &p.threads[NTHREADS]; t++) {
-        initlock(&t->lock, "thread");
-        t->kstack = KSTACK((int) (t - thread));
-    }
-}
+//// initialize the thread table at boot time.
+//void
+//threadinit(proc p) {
+//    struct thread *t;
+//    for (t = p.threads; t < &p.threads[NTHREADS]; t++) {
+//        initlock(&t->lock, "thread");
+//        t->kstack = KSTACK((int) (t - thread));
+//    }
+//}
 
 // Must be called with interrupts disabled,
 // to prevent race with process being moved
@@ -120,14 +121,14 @@ allocpid() {
     release(&pid_lock);
     return pid;
 }
-
+// TODO: ADD T->LOCK HERE AFTER WE ADD THREAD SYSTEMCALLS
 int allocthread(struct proc *p) {
     struct thread *t = &p->threads[p->threads_num];
     p->threads_num++;
     t->parent = p;
     t->tid = p->threads_num;
     t->state = USED_T;
-
+    // TODO: is the kalloc is ok?
     // Allocate a trapframe page.
     if ((t->trapframe = (struct trapframe *) kalloc()) == 0) {
         freethread(t);
@@ -269,7 +270,7 @@ proc_pagetable(struct proc *p) {
 
     // map the trapframe just below TRAMPOLINE, for trampoline.S.
     if (mappages(pagetable, TRAPFRAME, PGSIZE,
-                 (uint64) (p->trapframe), PTE_R | PTE_W) < 0) {
+                 (uint64) (p->threads[0].trapframe), PTE_R | PTE_W) < 0) {
         uvmunmap(pagetable, TRAMPOLINE, 1, 0);
         uvmfree(pagetable, 0);
         return 0;
@@ -318,8 +319,6 @@ userinit(void) {
 
     safestrcpy(p->name, "initcode", sizeof(p->name));
     p->cwd = namei("/");
-
-    p->state = USED;
     t->state = RUNNABLE;
     release(&p->lock);
 }
@@ -330,6 +329,7 @@ int
 growproc(int n) {
     uint sz;
     struct proc *p = myproc();
+    acquire(&p->lock);
     sz = p->sz;
     if (n > 0) {
         if ((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
@@ -339,6 +339,7 @@ growproc(int n) {
         sz = uvmdealloc(p->pagetable, sz, sz + n);
     }
     p->sz = sz;
+    release(&p->lock);
     return 0;
 }
 
@@ -464,34 +465,36 @@ exit(int status) {
 //    sched();
 //    panic("zombie exit");
     }
+}
 
-    void
-    exit_thread(int status) {
-        struct thread *t;
-        struct proc *currproc = myproc();
-        int active_threads = 0;
+void
+exit_thread(int status) {
+    struct thread *t;
+    struct proc *p = myproc();
+    int active_threads = 0;
 
-        for (int i = 0; i < currproc->t_num; ++i) {
-            t = &currproc->threads[i];
-            if (t->state != ZOMBIE_T && t->state != UNUSED_T)
-                active_threads++;
-        }
-
-        if (active_threads == 0) panic("No active_threads!");
-
-        // TODO: should it be >= 2?
-        if (active_threads == 2) {
-            wakeup(myproc());
-        }
-        if (active_threads == 1) {
-            exit_process(status);
-        } else {
-            wakeup(mythread());
-            mythread()->xstate = status;
-            mythread()->state = ZOMBIE_T;
-            sched();
-        }
+    for (int i = 0; i < p->t_num; ++i) {
+        t = &p->threads[i];
+        if (t->state != ZOMBIE_T && t->state != UNUSED_T)
+            active_threads++;
     }
+    if (active_threads == 0) panic("No active_threads!");
+
+    // TODO: should it be >= 2?
+    if (active_threads == 2) {
+        wakeup(myproc());
+    }
+    if (active_threads == 1) {
+        exit_process(status);
+    } else {
+        wakeup(mythread());
+        acquire(&t->lock);
+        mythread()->xstate = status;
+        mythread()->state = ZOMBIE_T;
+        sched();
+    }
+}
+
 }
 
 void
@@ -525,6 +528,8 @@ exit_process(int status) {
     // TODO: Should we keep killed in p or just in t? thers is no use for p.killed
     p->killed = 1;
     p->state = ZOMBIE;
+    release(&p->lock);
+
     release(&wait_lock);
     // Jump into the scheduler, never to return.
     sched();
@@ -539,9 +544,9 @@ wait(uint64 addr) {
     struct proc *np;
     int havekids, pid;
     struct proc *p = myproc();
+    struct thread *t;
 
     acquire(&wait_lock);
-
     for (;;) {
         // Scan through table looking for exited children.
         havekids = 0;
@@ -549,7 +554,6 @@ wait(uint64 addr) {
             if (np->parent == p) {
                 // make sure the child isn't still in exit() or swtch().
                 acquire(&np->lock);
-
                 havekids = 1;
                 if (np->state == ZOMBIE) {
                     // Found one.
@@ -559,6 +563,12 @@ wait(uint64 addr) {
                         release(&np->lock);
                         release(&wait_lock);
                         return -1;
+                    }
+                    for(int i = 0; i < np->threads_num; i++){
+                        t = &np->threads[i];
+                        if(t->state == ZOMBIE_T){
+                            freethread(t);
+                        }
                     }
                     freeproc(np);
                     release(&np->lock);
@@ -574,7 +584,6 @@ wait(uint64 addr) {
             release(&wait_lock);
             return -1;
         }
-
         // Wait for a child to exit.
         sleep(p, &wait_lock);  //DOC: wait-sleep
     }
@@ -591,28 +600,36 @@ void
 scheduler(void) {
     struct proc *p;
     struct cpu *c = mycpu();
-
     c->proc = 0;
+    c->thread = 0;
     for (;;) {
         // Avoid deadlock by ensuring that devices can interrupt.
         intr_on();
         int found = 0;
         for (p = proc; p < &proc[NPROC]; p++) {
-            acquire(&p->lock);
-            if (p->state == RUNNABLE) {
-                // Switch to chosen process.  It is the process's job
-                // to release its lock and then reacquire it
-                // before jumping back to us.
-                p->state = RUNNING;
-                c->proc = p;
-                swtch(&c->context, &p->context);
-
-                // Process is done running for now.
-                // It should have changed its p->state before coming back.
-                c->proc = 0;
-                found = 1;
+//            acquire(&p->lock);
+            if (p->state == USED) {
+                for (int i = 0; i < p->threads_num; i++){
+                    struct thread *t = p->threads[i];
+                    acquire(&t->lock);
+                    if (t->state == RUNNABLE){
+                        // Switch to chosen process.  It is the process's job
+                        // to release its lock and then reacquire it
+                        // before jumping back to us.
+                        t->state = RUNNING;
+                        c->proc = p;
+                        c->thread = t;
+                        swtch(&c->context, &t->context);
+                        // Process is done running for now.
+                        // It should have changed its p->state before coming back.
+                        c->proc = 0;
+                        c->thread = 0;
+                        found = 1;
+                    }
+                    release(&t->lock);
+                }
             }
-            release(&p->lock);
+//            release(&p->lock);
         }
         if (found == 0) {
             intr_on();
@@ -631,30 +648,31 @@ scheduler(void) {
 void
 sched(void) {
     int intena;
-    struct proc *p = myproc();
-
-    if (!holding(&p->lock))
-        panic("sched p->lock");
+//    struct proc *p = myproc();
+    struct thread *t = mythread();
+    if (!holding(&t->lock))
+//        panic("sched p->lock");
+        panic("sched t->lock");
     if (mycpu()->noff != 1)
         panic("sched locks");
-    if (p->state == RUNNING)
+    if (t->state == RUNNING)
         panic("sched running");
     if (intr_get())
         panic("sched interruptible");
-
     intena = mycpu()->intena;
-    swtch(&p->context, &mycpu()->context);
+    swtch(&t->context, &mycpu()->context);
     mycpu()->intena = intena;
 }
 
 // Give up the CPU for one scheduling round.
 void
 yield(void) {
-    struct proc *p = myproc();
-    acquire(&p->lock);
-    p->state = RUNNABLE;
+//    struct proc *p = myproc();
+    struct thread *t = mythread();
+    acquire(&t->lock);
+    t->state = RUNNABLE;
     sched();
-    release(&p->lock);
+    release(&t->lock);
 }
 
 // A fork child's very first scheduling by scheduler()
@@ -662,10 +680,8 @@ yield(void) {
 void
 forkret(void) {
     static int first = 1;
-
     // Still holding p->lock from scheduler.
-    release(&myproc()->lock);
-
+    release(&mythread()->lock);
     if (first) {
         // File system initialization must be run in the context of a
         // regular process (e.g., because it calls sleep), and thus cannot
@@ -681,8 +697,8 @@ forkret(void) {
 // Reacquires lock when awakened.
 void
 sleep(void *chan, struct spinlock *lk) {
-    struct proc *p = myproc();
-
+//    struct proc *p = myproc();
+    struct thread *t = mythread();
     // Must acquire p->lock in order to
     // change p->state and then call sched.
     // Once we hold p->lock, we can be
@@ -690,20 +706,20 @@ sleep(void *chan, struct spinlock *lk) {
     // (wakeup locks p->lock),
     // so it's okay to release lk.
 
-    acquire(&p->lock);  //DOC: sleeplock1
+    acquire(&t->lock);  //DOC: sleeplock1
     release(lk);
 
     // Go to sleep.
-    p->chan = chan;
-    p->state = SLEEPING;
+    t->chan = chan;
+    t->state = SLEEPING;
 
     sched();
 
     // Tidy up.
-    p->chan = 0;
+    t->chan = 0;
 
     // Reacquire original lock.
-    release(&p->lock);
+    release(&t->lock);
     acquire(lk);
 }
 
@@ -714,15 +730,17 @@ wakeup(void *chan) {
     struct proc *p;
     for (p = proc; p < &proc[NPROC]; p++) {
         if (p != myproc()) {
-            acquire(&p->lock);
-            if (p->state == SLEEPING && p->chan == chan) {
-                p->state = RUNNABLE;
+            for ( i = 0; i < p->threads_num; i++){
+                struct thread *t = &p->threads[i];
+                acquire(&t->lock);
+                if (t->state == SLEEPING && t->chan == chan) {
+                    t->state = RUNNABLE;
+                }
+                release(&t->lock);
             }
-            release(&p->lock);
         }
     }
 }
-
 
 int
 kill(int pid, int signum) {
@@ -831,6 +849,7 @@ procdump(void) {
 /// Task 2.1.4
 int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
     struct proc *p = myproc();
+    acquire(&p->lock);
     // Save old signal handler and copy it to user-space
     struct sigaction tmp_oldact;
     tmp_oldact.sa_handler = p->signal_handlers[signum];
@@ -844,16 +863,17 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
     p->signal_mask_arr[signum] = newact.sigmask;
 //    printf("in proc.c new act.sa_handler: %d\n", newact.sa_handler);
 //    printf("in proc.c new act.sigmask: %d\n", newact.sigmask);
+    release(&p->lock);
     return 0;
 }
 
 /// Task 2.4
 /// Checking for the process's 32 possible pending signals and handling them.
 void signal_handler(void) {
-    struct proc *p = myproc();
+    struct thread *t = mythread();
+    struct proc *p = t->parent;
     int pending_signal_bit;
     int mask_signal_bit;
-
     for (int i = 0; i < 32; i++) {
         pending_signal_bit = p->pending_signals & (1 << i); // Check if the bit in position i of pend_sig is 1
         mask_signal_bit = p->signal_mask & (1 << i);   // Check if the bit in the i place at the mask is 1
@@ -861,48 +881,65 @@ void signal_handler(void) {
             (!mask_signal_bit || i == SIGKILL || i == SIGSTOP)) {  //SIGSTOP and SIGKILL can not be blocked
             if (i == SIGKILL || p->signal_handlers[i] == (void *) SIG_DFL ||
                 p->signal_handlers[i] == (void *) SIGKILL) { // SIGKILL Handling
-                p->killed = 1;
-                if (p->state == SLEEPING) {
-                    // Wake up the process from sleeping
+                for (int i = 0; i < p->threads_num; i++){
+                    struct thread curr_t = p->threads[i];
+                    acquire(&t->lock);
+                    curr_t->killed = 1;
+                    if (curr_t->state == SLEEPING) {
+                        // Wake up the process from sleeping
 //                     push_off();
-                    p->state = RUNNABLE;
+                        curr_t->state = RUNNABLE;
+                    }
+                    release(&t->lock);
                 }
+//                acquire(&p->lock);
+                p->killed = 1;
 //                 pop_off();
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
+//                release(&p->lock);
 //                printf("in proc.c -> signal_handler SIGKILL case, PID: %d   i = %d     handler addr: %d \n", p->pid, i, p->signal_handlers[i]);
             } else if (i == SIGSTOP || p->signal_handlers[i] == (void *) SIGSTOP) { // SIGKILL Handling
+//                acquire(&p->lock);
                 p->frozen = 1;
+//                release(&p->lock);
                 while ((p->pending_signals & (1 << SIGCONT)) == 0) { // while SIGCONT is not turned on
                     yield();
                 }
+//                acquire(&p->lock);
                 p->frozen = 0;
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
                 p->pending_signals ^= (1 << 19); // Set the bit of the signal back to zero (bitwise xor)
+//                release(&p->lock);
             }
                 // just in case SIGCONT received and the process is not on SIGSTOP
             else if (i == SIGCONT || p->signal_handlers[i] == (void *) SIGCONT) { // SIGKILL Handling
+//                acquire(&p->lock);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
+//                release(&p->lock);
             } else if (p->signal_handlers[i] ==
                        (void *) SIG_IGN) { // The handler of the current signal is IGN, thus we ignore the current signal
+//                acquire(&p->lock);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero
+//                release(&p->lock);
             }
                 // Handling user space handler
             else {
 //                printf("in proc.c -> signal_handler else case, PID:   i = %d     handler addr: %d \n", p->pid, i, p->signal_handlers[i]);
                 // Backup mask
+//                acquire(&p->lock);
                 p->signal_mask_backup = p->signal_mask;
                 p->signal_mask = p->signal_mask_arr[i];
                 // Backup trapframe
-                memmove(p->usertrap_backup, p->trapframe, sizeof(struct trapframe)); //Copy Backup
+                memmove(t->usertrap_backup, t->trapframe, sizeof(struct trapframe)); //Copy Backup
                 // change return address to sigret function
-                p->trapframe->sp -= &sigret_end - &sigret_start; // Save a space at the stack to the sigret function
-                copyout(p->pagetable, (uint64) p->trapframe->sp, (char *) sigret_start,
+                t->trapframe->sp -= &sigret_end - &sigret_start; // Save a space at the stack to the sigret function
+                copyout(p->pagetable, (uint64) t->trapframe->sp, (char *) sigret_start,
                         &sigret_end - &sigret_start); // memmove function move sigret function to sp register
-                p->trapframe->ra = p->trapframe->sp; // Return address is the code on stack
-                p->trapframe->a0 = i; // Save signum argument
-                p->trapframe->epc = (uint64) p->signal_handlers[i]; // move handler[i] function to epc in order to run the user handler
-                p->pending_signals ^= (1
-                        << i); // Set the bit of the signal back to zero // TODO understand when we return to this line
+                t->trapframe->ra = t->trapframe->sp; // Return address is the code on stack
+                t->trapframe->a0 = i; // Save signum argument
+                t->trapframe->epc = (uint64) p->signal_handlers[i]; // move handler[i] function to epc in order to run the user handler
+                p->pending_signals ^= (1<< i); // Set the bit of the signal back to zero // TODO understand when we return to this line
+//                release(&p->lock);
 //                printf("in proc.c -> return for sigret PID: %d p->pending_signals: %d \n", p->pid, p->pending_signals);
                 return; // TODO how do we continue to the next iteration, if so.
             }
