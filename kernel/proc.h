@@ -103,6 +103,7 @@ struct thread {
     int xstate;                  // Exit status to be returned to parent's wait
     int tid;                    // thread ID
     struct proc *parent;        // ptr to the process that holds this thread
+    int should_exit;             // If non-zero, thread should preform exit
 
 
     //  these are private to the threads, so t->lock need not be held.

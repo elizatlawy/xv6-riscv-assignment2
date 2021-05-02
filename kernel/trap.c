@@ -49,11 +49,10 @@ usertrap(void) {
 
     if (r_scause() == 8) {
         // system call
-        if(t->killed)
-            exit(-1);
-//        if (p->killed)
-//            exit_process(-1);
-
+        if(t->should_exit)
+            exit_thread(0);
+        if (p->killed)
+            exit_process(-1);
         // sepc points to the ecall instruction,
         // but we want to return to the next instruction.
         t->trapframe->epc += 4;
@@ -73,7 +72,7 @@ usertrap(void) {
     //  TODO: why t killed here?
     if (t->killed){
 //        printf("in usertrap Thread EXIT TID: %d form PID: %d Killed\n",t->tid, p->pid);
-        exit(-1);
+        exit_thread(-1);
     }
 //    if (p->killed){
 //        printf("in usertrap Process EXIT PID: %d Killed\n", p->pid);

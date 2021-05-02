@@ -178,7 +178,6 @@ allocproc(void) {
         freeproc(p);
 //        printf("in allocproc start release to PID: %d \n", p->pid);
         release(&p->lock);
-
         return 0;
     }
 //    // Allocate a trapframe page.
@@ -438,66 +437,55 @@ reparent(struct proc *p) {
 // until its parent calls wait().
 void
 exit(int status) {
-//    if (status == -1) {
-//        printf("in exit() got status = -1\n");
-//    }
-//    printf("entered exit() with status: %d\n", status);
-//    struct thread *t = mythread();
-    exit_thread(status);
-//    if (t->killed == 1) {
-//        exit_thread(status);
-//    }
-//    else{
-//        t->killed = 1;
-//    }
-    // TODO: SHOLUD WE ADD T.LOCK HEHRE?
-//    else {
-//        for (int i = 0; i < p->threads_num; i++) {
-//            struct thread *curr_t =  &p->threads[i];
-//            curr_t->killed = 1;
-//            // Wake process from sleep if necessary.
-//            if (curr_t->state == SLEEPING)
-//                curr_t->state = RUNNABLE;
-//        }
-//    }
+    struct proc *p = myproc();
+    struct thread *t = mythread();
+    struct thread *curr_t;
+    if (t->should_exit) {
+        exit_thread(status);
+    } else {
+        for (curr_t = p->threads; t < &p->threads[NTHREADS]; t++) {
+            if (curr_t->tid != t->tid) {
+                acquire(&curr_t->lock);
+                curr_t->should_exit = 1;
+                if (curr_t->state == SLEEPING) {
+                    curr_t->state = RUNNABLE;
+                }
+                release(&curr_t->lock);
+            }
+        }
+    }
+    // waiting for all other thread of this proc to become ZOMBIE gracefully
+    for (;;) {
+        int active_thread = 0;
+        for (curr_t = p->threads; t < &p->threads[NTHREADS]; t++) {
+            if (curr_t->tid != t->tid && curr_t->state != ZOMBIE_T && curr_t->state != UNUSED_T) {
+                active_thread = 1;
+            }
+        }
+        if (active_thread) {
+            yield();
+        } else {
+            exit_process(status);
+        }
+    }
 }
 
 
 void
 exit_thread(int status) {
-    exit_process(status);
-//    struct thread *t;
-//    struct proc *p = myproc();
-//    int active_threads = 0;
-    // check if the parent of t has other active threads
-//    for (int i = 0; i < p->threads_num; ++i) {
-//        t = &p->threads[i];
-//        if (t->state != ZOMBIE_T && t->state != UNUSED_T)
-//            active_threads++;
-//    }
-//    if (active_threads == 0) panic("No active_threads!");
-//
-//    // TODO: should it be >= 2?
-//    if (active_threads == 2) {
-//        wakeup(myproc());
-//        panic("in exit_thread() active_threads = 2\n");
-//    }
-//    if (active_threads == 1) {
-//        exit_process(status);
-//    } else {
-//        wakeup(mythread());
-//        acquire(&mythread()->lock);
-//        mythread()->xstate = status;
-//        mythread()->state = ZOMBIE_T;
-//        sched();
-//    }
+    struct thread *t = mythread();
+    acquire(&wait_lock);
+    wakeup(t);
+    release(&wait_lock);
+    acquire(&t->lock);
+    t->xstate = status;
+    t->state = ZOMBIE_T;
+    sched();
+    panic("zombie exit");
 }
 
 void
 exit_process(int status) {
-//    if (status == -1) {
-//        printf("in exit_process() got status = -1\n");
-//    }
     struct proc *p = myproc();
     struct thread *t = mythread();
     if (p == initproc)
@@ -520,12 +508,10 @@ exit_process(int status) {
     reparent(p);
     // Parent might be sleeping in wait().
     wakeup(p->parent);
-//    printf("in exit_process start acquire to PID: %d \n", p->pid);
     acquire(&p->lock);
     p->xstate = status;
 //    p->killed = 1;
     p->state = ZOMBIE;
-//    printf("in exit_process() start release to PID: %d \n", p->pid);
     acquire(&t->lock);
     release(&p->lock);
     t->xstate = status;
@@ -655,7 +641,7 @@ sched(void) {
     int intena;
 //    struct proc *p = myproc();
     struct thread *t = mythread();
-    if (!holding(&t->lock)){
+    if (!holding(&t->lock)) {
         panic("sched t->lock");
     }
     // checl if the current CPU holds only 1 lock
@@ -889,22 +875,8 @@ void signal_handler(void) {
             (!mask_signal_bit || i == SIGKILL || i == SIGSTOP)) {  //SIGSTOP and SIGKILL can not be blocked
             if (i == SIGKILL || p->signal_handlers[i] == (void *) SIG_DFL ||
                 p->signal_handlers[i] == (void *) SIGKILL) { // SIGKILL Handling
-                for (int i = 0; i < p->threads_num; i++) {
-                    struct thread *curr_t = &p->threads[i];
-//                    acquire(&t->lock);
-                    curr_t->killed = 1;
-                    if (curr_t->state == SLEEPING) {
-                        // Wake up the process from sleeping
-//                     push_off();
-                        curr_t->state = RUNNABLE;
-                    }
-//                    release(&t->lock);
-                }
-//                acquire(&p->lock);
-//                 pop_off();
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-//                release(&p->lock);
-//                printf("in proc.c -> signal_handler SIGKILL case, PID: %d   i = %d     handler addr: %d \n", p->pid, i, p->signal_handlers[i]);
+                exit(-1);
             } else if (i == SIGSTOP || p->signal_handlers[i] == (void *) SIGSTOP) { // SIGKILL Handling
 //                acquire(&p->lock);
                 p->frozen = 1;
