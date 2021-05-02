@@ -59,7 +59,7 @@ procinit(void) {
     for (p = proc; p < &proc[NPROC]; p++) {
         initlock(&p->lock, "proc");
 //        p->kstack = KSTACK((int) (p - proc));
-        // TODO: should it be p - proc?
+        // TODO: should it be t - thread?
         p->threads[0].kstack = KSTACK((int) (p - proc));
         initlock(&(p->threads[0].lock), "Thread");
     }
@@ -264,7 +264,6 @@ freeproc(struct proc *p) {
 pagetable_t
 proc_pagetable(struct proc *p) {
     pagetable_t pagetable;
-
     // An empty page table.
     pagetable = uvmcreate();
     if (pagetable == 0)
@@ -408,9 +407,11 @@ fork(void) {
     safestrcpy(np->name, p->name, sizeof(p->name));
 
     pid = np->pid;
-
-
+    release(&nt->lock);
+    release(&np->lock);
     acquire(&wait_lock);
+    acquire(&np->lock);
+    acquire(&nt->lock);
     np->parent = p;
     nt->parent = np;
     release(&wait_lock);
@@ -438,9 +439,9 @@ reparent(struct proc *p) {
 // until its parent calls wait().
 void
 exit(int status) {
-    if (status == -1) {
-        printf("in exit() got status = -1\n");
-    }
+//    if (status == -1) {
+//        printf("in exit() got status = -1\n");
+//    }
 //    printf("entered exit() with status: %d\n", status);
 //    struct proc *p = myproc();
     struct thread *t = mythread();
@@ -525,9 +526,9 @@ exit_thread(int status) {
 
 void
 exit_process(int status) {
-    if (status == -1) {
-        printf("in exit_process() got status = -1\n");
-    }
+//    if (status == -1) {
+//        printf("in exit_process() got status = -1\n");
+//    }
     struct proc *p = myproc();
     struct thread *t = mythread();
     if (p == initproc)

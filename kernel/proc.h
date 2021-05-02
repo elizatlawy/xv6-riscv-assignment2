@@ -90,7 +90,7 @@ struct trapframe {
 enum procstate { UNUSED, USED, ZOMBIE };
 
 enum threadstate {
-    UNUSED_T, USED_T, SLEEPING, RUNNABLE, RUNNING, ZOMBIE_T, BLOCKED
+    UNUSED_T, USED_T, SLEEPING, RUNNABLE, RUNNING, ZOMBIE_T
 };
 
 
@@ -102,12 +102,13 @@ struct thread {
     int killed;                  // If non-zero, have been killed
     int xstate;                  // Exit status to be returned to parent's wait
     int tid;                    // thread ID
+    struct proc *parent;        // ptr to the process that holds this thread
+
 
     //  these are private to the threads, so t->lock need not be held.
     uint64 kstack;               // Virtual address of kernel stack
     struct trapframe *trapframe;        // Trap frame for current syscall
     struct context context;     // swtch() here to run thread
-    struct proc *parent;        // ptr to the process that holds this thread
     struct trapframe* usertrap_backup;
 };
 

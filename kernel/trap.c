@@ -44,8 +44,6 @@ usertrap(void) {
 
     struct proc *p = myproc();
     struct thread *t = mythread();
-
-
     // save user program counter.
     t->trapframe->epc = r_sepc();
 
@@ -74,7 +72,7 @@ usertrap(void) {
     }
     //  TODO: why t killed here?
     if (t->killed){
-        printf("in usertrap Thread EXIT TID: %d form PID: %d Killed\n",t->tid, p->pid);
+//        printf("in usertrap Thread EXIT TID: %d form PID: %d Killed\n",t->tid, p->pid);
         exit(-1);
     }
 //    if (p->killed){
