@@ -50,7 +50,7 @@ usertrap(void) {
     if (r_scause() == 8) {
         // system call
         if(t->killed)
-            exit(-1);
+            exit(0);
 //        if (p->killed)
 //            exit_process(-1);
 
@@ -73,7 +73,7 @@ usertrap(void) {
     //  TODO: why t killed here?
     if (t->killed){
 //        printf("in usertrap Thread EXIT TID: %d form PID: %d Killed\n",t->tid, p->pid);
-        exit(-1);
+        exit(0);
     }
 //    if (p->killed){
 //        printf("in usertrap Process EXIT PID: %d Killed\n", p->pid);

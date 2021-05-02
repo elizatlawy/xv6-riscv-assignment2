@@ -245,7 +245,6 @@ freeproc(struct proc *p) {
     p->pid = 0;
     p->parent = 0;
     p->name[0] = 0;
-//    p->chan = 0;
     p->killed = 0;
     p->xstate = 0;
     p->threads_num = 0;
@@ -457,7 +456,9 @@ exit(int status) {
 //    }
     if (t->killed == 1) {
         exit_thread(status);
-
+    }
+    else{
+        t->killed = 1;
     }
     // TODO: SHOLUD WE ADD T.LOCK HEHRE?
 //    else {
@@ -523,7 +524,6 @@ exit_thread(int status) {
         sched();
     }
 }
-
 void
 exit_process(int status) {
 //    if (status == -1) {
@@ -861,27 +861,27 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len) {
 // TODO: add threas support to this one
 void
 procdump(void) {
-//    static char *states[] = {
-//            [UNUSED]    "unused",
-//            [SLEEPING]  "sleep ",
-//            [RUNNABLE]  "runble",
-//            [RUNNING]   "run   ",
-//            [ZOMBIE]    "zombie"
-//    };
-//    struct proc *p;
-//    char *state;
-//
-//    printf("\n");
-//    for (p = proc; p < &proc[NPROC]; p++) {
-//        if (p->state == UNUSED)
-//            continue;
-//        if (p->state >= 0 && p->state < NELEM(states) && states[p->state])
-//            state = states[p->state];
-//        else
-//            state = "???";
-//        printf("%d %s %s", p->pid, state, p->name);
-//        printf("\n");
-//    }
+    static char *states[] = {
+            [UNUSED]    "unused",
+            [SLEEPING]  "sleep ",
+            [RUNNABLE]  "runble",
+            [RUNNING]   "run   ",
+            [ZOMBIE]    "zombie"
+    };
+    struct proc *p;
+    char *state;
+
+    printf("\n");
+    for (p = proc; p < &proc[NPROC]; p++) {
+        if (p->state == UNUSED)
+            continue;
+        if (p->state >= 0 && p->state < NELEM(states) && states[p->state])
+            state = states[p->state];
+        else
+            state = "???";
+        printf("%d %s %s", p->pid, state, p->name);
+        printf("\n");
+    }
 }
 
 
