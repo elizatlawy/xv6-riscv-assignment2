@@ -98,10 +98,11 @@ void kill_test() {
     }
     if (child_pid) { //father
         kill(child_pid, 9);
-        wait(0);
-        printf("exit wait -> child killed \n");
+        int status;
+        wait(&status);
+        printf("exit wait -> child PID: %d killed with status: %d \n", child_pid,status);
     } else { // child
-        sleep(100000);
+        sleep(10);
     }
 }
 
@@ -109,7 +110,7 @@ void many_kills() {
     for (int i = 0; i < 3; i++) {
         int child_pid = fork();
         if (child_pid == 0)
-            sleep(410065408);
+            sleep(10);
     }
 }
 
@@ -120,7 +121,7 @@ void fork_test(){
     }
     else if (child_pid > 0) { // father
 //        printf("new child PID is: %d\n", child_pid);
-        int status = 0;
+        int status;
         wait(&status);
         printf("Child PID: %d exit with status: %d\n",child_pid, status);
     } else { // child
@@ -129,28 +130,10 @@ void fork_test(){
 }
 
 int main(int argc, char *argv[]) {
-
-//    fork_test();
-    stopcont();
-//    for (int i = 0; i < 5; i++) {
-//        int child_pid = fork();
-//        if (child_pid < 0) {
-//            printf("fork failed\n");
-//        }
-//        if (child_pid > 0) { // father
-////        printf("new child PID is: %d\n", child_pid);
-//            int status = 0;
-//            wait(&status);
-//            printf("Child PID: %d exit with status: %d\n",child_pid, status);
-//        }
-//        if (child_pid == 0) { // child
-//            printf("new child PID: %d created\n", child_pid);
-//        }
-//    }
-//    sigaction_test();
+//    fork();
+//    printf("PID: %d\n", getpid());
 //    sigprocmastk_test();
-//    kill_test();
-//    many_kills();
-        exit(0);
+//    fork_test();
+    exit(0);
 }
 

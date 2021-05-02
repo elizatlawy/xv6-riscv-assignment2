@@ -45,13 +45,16 @@ usertrap(void) {
     struct proc *p = myproc();
     struct thread *t = mythread();
 
+
     // save user program counter.
     t->trapframe->epc = r_sepc();
 
     if (r_scause() == 8) {
         // system call
-        if (p->killed)
+        if(t->killed)
             exit(-1);
+//        if (p->killed)
+//            exit_process(-1);
 
         // sepc points to the ecall instruction,
         // but we want to return to the next instruction.
@@ -65,13 +68,19 @@ usertrap(void) {
     } else if ((which_dev = devintr()) != 0) {
         // ok
     } else {
-        printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+        printf("usertrap(): unexpected scause %d pid=%d\n", r_scause(), p->pid);
         printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-        p->killed = 1;
+        t->killed = 1;
     }
     //  TODO: why t killed here?
-    if (p->killed)
+    if (t->killed){
+        printf("in usertrap Thread EXIT TID: %d form PID: %d Killed\n",t->tid, p->pid);
         exit(-1);
+    }
+//    if (p->killed){
+//        printf("in usertrap Process EXIT PID: %d Killed\n", p->pid);
+//        exit_process(-1);
+//    }
 
     // give up the CPU if this is a timer interrupt.
     if (which_dev == 2)
