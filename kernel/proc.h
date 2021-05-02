@@ -95,7 +95,7 @@ enum threadstate {
 
 
 struct thread {
-    struct spinlock lock;
+//    struct spinlock lock;
     // t->lock must be held when using these:
     enum threadstate state;       // Thread state
     void *chan;                  // If non-zero, sleeping on chan
