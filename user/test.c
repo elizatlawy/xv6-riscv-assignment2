@@ -130,7 +130,7 @@ void fork_test(){
 }
 
 int main(int argc, char *argv[]) {
-//    fork();
+
 //    printf("PID: %d\n", getpid());
 //    sigprocmastk_test();
 //    sigaction_test();

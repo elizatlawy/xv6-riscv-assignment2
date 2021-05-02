@@ -331,7 +331,6 @@ int
 growproc(int n) {
     uint sz;
     struct proc *p = myproc();
-//    acquire(&p->lock);
     sz = p->sz;
     if (n > 0) {
         if ((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
@@ -341,7 +340,6 @@ growproc(int n) {
         sz = uvmdealloc(p->pagetable, sz, sz + n);
     }
     p->sz = sz;
-//    release(&p->lock);
     return 0;
 }
 
@@ -430,7 +428,7 @@ exit(int status) {
         exit_thread(status);
     } else {
         acquire(&p->lock);
-        for (curr_t = p->threads; t < &p->threads[NTHREADS]; t++) {
+        for (curr_t = p->threads; curr_t < &p->threads[NTHREADS]; curr_t++) {
             if (curr_t->tid != t->tid) {
                 curr_t->should_exit = 1;
                 if (curr_t->state == SLEEPING) {
@@ -444,7 +442,7 @@ exit(int status) {
     for (;;) {
         int active_thread = 0;
         acquire(&p->lock);
-        for (curr_t = p->threads; t < &p->threads[NTHREADS]; t++) {
+        for (curr_t = p->threads; curr_t < &p->threads[NTHREADS]; curr_t++) {
             if (curr_t->tid != t->tid && curr_t->state != ZOMBIE_T && curr_t->state != UNUSED_T) {
                 active_thread = 1;
             }
@@ -463,12 +461,23 @@ void
 exit_thread(int status) {
     struct thread *t = mythread();
     struct proc *p = myproc();
+    struct thread *curr_t;
     acquire(&wait_lock);
     wakeup(t);
     release(&wait_lock);
     acquire(&p->lock);
     t->xstate = status;
     t->state = ZOMBIE_T;
+    int active_thread = 0;
+    for (curr_t = p->threads; curr_t < &p->threads[NTHREADS]; curr_t++) {
+        if (curr_t->tid != t->tid && curr_t->state != ZOMBIE_T && curr_t->state != UNUSED_T) {
+            active_thread = 1;
+        }
+    }
+    if(!active_thread){
+        release(&p->lock);
+        exit_process(status);
+    }
     sched();
     panic("zombie exit");
 }
@@ -655,7 +664,7 @@ void
 forkret(void) {
     static int first = 1;
     // Still holding p->lock from scheduler.
-    release(&myproc->lock);
+    release(&myproc()->lock);
     if (first) {
         // File system initialization must be run in the context of a
         // regular process (e.g., because it calls sleep), and thus cannot
@@ -839,11 +848,12 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 /// Task 2.4
 /// Checking for the process's 32 possible pending signals and handling them.
 void signal_handler(void) {
+    struct proc *p = myproc();
     struct thread *t = mythread();
-    struct proc *p = t->parent;
     int pending_signal_bit;
     int mask_signal_bit;
     for (int i = 0; i < 32; i++) {
+        acquire(&p->lock);
         pending_signal_bit = p->pending_signals & (1 << i); // Check if the bit in position i of pend_sig is 1
         mask_signal_bit = p->signal_mask & (1 << i);   // Check if the bit in the i place at the mask is 1
         if (pending_signal_bit &&
@@ -851,36 +861,29 @@ void signal_handler(void) {
             if (i == SIGKILL || p->signal_handlers[i] == (void *) SIG_DFL ||
                 p->signal_handlers[i] == (void *) SIGKILL) { // SIGKILL Handling
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
+                release(&p->lock);
                 exit(-1);
             } else if (i == SIGSTOP || p->signal_handlers[i] == (void *) SIGSTOP) { // SIGKILL Handling
-//                acquire(&p->lock);
                 p->frozen = 1;
-//                release(&p->lock);
                 while ((p->pending_signals & (1 << SIGCONT)) == 0) { // while SIGCONT is not turned on
+                    release(&p->lock);
                     yield();
+                    acquire(&p->lock);
                 }
-//                acquire(&p->lock);
                 p->frozen = 0;
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
                 p->pending_signals ^= (1 << 19); // Set the bit of the signal back to zero (bitwise xor)
-//                release(&p->lock);
             }
                 // just in case SIGCONT received and the process is not on SIGSTOP
             else if (i == SIGCONT || p->signal_handlers[i] == (void *) SIGCONT) { // SIGKILL Handling
-//                acquire(&p->lock);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-//                release(&p->lock);
             } else if (p->signal_handlers[i] ==
                        (void *) SIG_IGN) { // The handler of the current signal is IGN, thus we ignore the current signal
-//                acquire(&p->lock);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero
-//                release(&p->lock);
             }
                 // Handling user space handler
             else {
-//                printf("in proc.c -> signal_handler else case, PID:   i = %d     handler addr: %d \n", p->pid, i, p->signal_handlers[i]);
                 // Backup mask
-//                acquire(&p->lock);
                 p->signal_mask_backup = p->signal_mask;
                 p->signal_mask = p->signal_mask_arr[i];
                 // Backup trapframe
@@ -894,10 +897,9 @@ void signal_handler(void) {
                 t->trapframe->epc = (uint64) p->signal_handlers[i]; // move handler[i] function to epc in order to run the user handler
                 p->pending_signals ^= (1
                         << i); // Set the bit of the signal back to zero // TODO understand when we return to this line
-//                release(&p->lock);
-//                printf("in proc.c -> return for sigret PID: %d p->pending_signals: %d \n", p->pid, p->pending_signals);
                 return; // TODO how do we continue to the next iteration, if so.
             }
         }
+        release(&p->lock);
     }
 }

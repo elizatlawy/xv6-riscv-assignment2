@@ -125,9 +125,8 @@ uint64 sys_sigret(void){
     // restore trapframe backup.
     memmove(t->trapframe,t->usertrap_backup,sizeof(struct trapframe));
     //restore mask backup
-    acquire(&myproc()->lock);
     p->signal_mask = p->signal_mask_backup;
-    release(&myproc()->lock);
+    release(&p->lock);
     return 0;
 }
 
