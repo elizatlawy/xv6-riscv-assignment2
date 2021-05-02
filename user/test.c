@@ -133,8 +133,10 @@ int main(int argc, char *argv[]) {
 //    fork();
 //    printf("PID: %d\n", getpid());
 //    sigprocmastk_test();
+//    sigaction_test();
 //    fork_test();
 //    many_kills();
+//    stopcont();
     exit(0);
 }
 

@@ -90,7 +90,7 @@ struct trapframe {
 enum procstate { UNUSED, USED, ZOMBIE };
 
 enum threadstate {
-    UNUSED_T, USED_T, SLEEPING, RUNNABLE, RUNNING, ZOMBIE_T
+    UNUSED_T, USED_T, SLEEPING, RUNNABLE, RUNNING, ZOMBIE_T, INVALID
 };
 
 

@@ -442,24 +442,14 @@ exit(int status) {
 //        printf("in exit() got status = -1\n");
 //    }
 //    printf("entered exit() with status: %d\n", status);
-//    struct proc *p = myproc();
-    struct thread *t = mythread();
-//    if (p == initproc)
-//        panic("init exiting");
-//    // Close all open files.
-//    for (int fd = 0; fd < NOFILE; fd++) {
-//        if (p->ofile[fd]) {
-//            struct file *f = p->ofile[fd];
-//            fileclose(f);
-//            p->ofile[fd] = 0;
-//        }
+//    struct thread *t = mythread();
+    exit_thread(status);
+//    if (t->killed == 1) {
+//        exit_thread(status);
 //    }
-    if (t->killed == 1) {
-        exit_thread(status);
-    }
-    else{
-        t->killed = 1;
-    }
+//    else{
+//        t->killed = 1;
+//    }
     // TODO: SHOLUD WE ADD T.LOCK HEHRE?
 //    else {
 //        for (int i = 0; i < p->threads_num; i++) {
@@ -470,60 +460,39 @@ exit(int status) {
 //                curr_t->state = RUNNABLE;
 //        }
 //    }
-
-//    begin_op();
-//    iput(p->cwd);
-//    end_op();
-//    p->cwd = 0;
-//
-//    acquire(&wait_lock);
-//
-//    // Give any children to init.
-//    reparent(p);
-//
-//    // Parent might be sleeping in wait().
-//    wakeup(p->parent);
-//
-//    acquire(&p->lock);
-//
-//    p->xstate = status;
-//    p->state = ZOMBIE;
-//
-//    release(&wait_lock);
-//
-//    // Jump into the scheduler, never to return.
-//    sched();
-//    panic("zombie exit");
 }
 
 
 void
 exit_thread(int status) {
-    struct thread *t;
-    struct proc *p = myproc();
-    int active_threads = 0;
+    exit_process(status);
+//    struct thread *t;
+//    struct proc *p = myproc();
+//    int active_threads = 0;
     // check if the parent of t has other active threads
-    for (int i = 0; i < p->threads_num; ++i) {
-        t = &p->threads[i];
-        if (t->state != ZOMBIE_T && t->state != UNUSED_T)
-            active_threads++;
-    }
-    if (active_threads == 0) panic("No active_threads!");
-
-    // TODO: should it be >= 2?
-    if (active_threads == 2) {
-        wakeup(myproc());
-    }
-    if (active_threads == 1) {
-        exit_process(status);
-    } else {
-        wakeup(mythread());
-        acquire(&mythread()->lock);
-        mythread()->xstate = status;
-        mythread()->state = ZOMBIE_T;
-        sched();
-    }
+//    for (int i = 0; i < p->threads_num; ++i) {
+//        t = &p->threads[i];
+//        if (t->state != ZOMBIE_T && t->state != UNUSED_T)
+//            active_threads++;
+//    }
+//    if (active_threads == 0) panic("No active_threads!");
+//
+//    // TODO: should it be >= 2?
+//    if (active_threads == 2) {
+//        wakeup(myproc());
+//        panic("in exit_thread() active_threads = 2\n");
+//    }
+//    if (active_threads == 1) {
+//        exit_process(status);
+//    } else {
+//        wakeup(mythread());
+//        acquire(&mythread()->lock);
+//        mythread()->xstate = status;
+//        mythread()->state = ZOMBIE_T;
+//        sched();
+//    }
 }
+
 void
 exit_process(int status) {
 //    if (status == -1) {
@@ -534,6 +503,7 @@ exit_process(int status) {
     if (p == initproc)
         panic("init exiting");
     // Close all open files.
+    // TODO: make sure we close all active file only after all thread of this process exit
     for (int fd = 0; fd < NOFILE; fd++) {
         if (p->ofile[fd]) {
             struct file *f = p->ofile[fd];
@@ -545,7 +515,6 @@ exit_process(int status) {
     iput(p->cwd);
     end_op();
     p->cwd = 0;
-
     acquire(&wait_lock);
     // Give any children to init.
     reparent(p);
@@ -554,7 +523,7 @@ exit_process(int status) {
 //    printf("in exit_process start acquire to PID: %d \n", p->pid);
     acquire(&p->lock);
     p->xstate = status;
-    p->killed = 1;
+//    p->killed = 1;
     p->state = ZOMBIE;
 //    printf("in exit_process() start release to PID: %d \n", p->pid);
     acquire(&t->lock);
@@ -602,7 +571,7 @@ wait(uint64 addr) {
                             freethread(t);
                             release(&t->lock);
                         }
-                        if (t->state != ZOMBIE_T) {
+                        if (t->state != ZOMBIE_T && t->state != UNUSED_T) {
                             panic("in Wait() Process zombie have thread that is not ZOMBIE_T");
                         }
                     }

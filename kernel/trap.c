@@ -50,7 +50,7 @@ usertrap(void) {
     if (r_scause() == 8) {
         // system call
         if(t->killed)
-            exit(0);
+            exit(-1);
 //        if (p->killed)
 //            exit_process(-1);
 
@@ -73,7 +73,7 @@ usertrap(void) {
     //  TODO: why t killed here?
     if (t->killed){
 //        printf("in usertrap Thread EXIT TID: %d form PID: %d Killed\n",t->tid, p->pid);
-        exit(0);
+        exit(-1);
     }
 //    if (p->killed){
 //        printf("in usertrap Process EXIT PID: %d Killed\n", p->pid);
@@ -155,7 +155,7 @@ kerneltrap() {
         panic("kerneltrap: interrupts enabled");
 
     if ((which_dev = devintr()) == 0) {
-        printf("scause %p\n", scause);
+        printf("scause %d\n", scause);
         printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
         panic("kerneltrap");
     }
