@@ -127,15 +127,15 @@ void fork_test(){
 }
 
 void handler2(int x) {
-    printf("handler 2 done\n");
+    printf("2\n");
 }
 
 void handler3(int x) {
-    printf("handler 3 done\n");
+    printf("3\n");
 }
 
 void handler4(int x) {
-    printf("handler 4 done\n");
+    printf("4\n");
 }
 
 void signal_handler_kernel_sig_test(){
@@ -152,12 +152,13 @@ void signal_handler_kernel_sig_test(){
 //        printf("sec kill_res: %d\n",kill_res);
 //        kill_res = kill(child_pid, 3); // SIG_IGN
 //        printf("third kill_res: %d\n",kill_res);
-        sleep(10);
-        kill_res = kill(child_pid, 17); // SIGSTOP
-        printf(" SIGSTOP sent to child: %d with res: %d\n",child_pid,kill_res);
+
         sleep(10);
         kill_res = kill(child_pid, 19); // SIGCONT
         printf(" SIGCONT sent to child: %d with res: %d\n",child_pid,kill_res);
+        sleep(20);
+        kill_res = kill(child_pid, 17); // SIGSTOP
+        printf(" SIGSTOP sent to child: %d with res: %d\n",child_pid,kill_res);
         sleep(10);
         kill_res = kill(child_pid, 9); // SIGKILL
         printf(" SIGKILL sent to child: %d with res: %d\n",child_pid,kill_res);
@@ -165,16 +166,6 @@ void signal_handler_kernel_sig_test(){
         wait(&status);
         printf("Child PID: %d exit with status: %d\n",child_pid, status);
     } else { // child
-//        struct sigaction act;
-//        act.sigmask = 0;
-//        struct  sigaction oldact;
-//        act.sa_handler = (void*)1; // put the address of func handler
-//        sigaction(2,&act,&oldact);
-//        struct sigaction act2;
-//        act2.sa_handler = (void*)1; // SIG_IGN
-//        sigaction(3,&act2,&oldact);
-//        act.sa_handler = handler4;
-//        sigaction(4,&act,&oldact);
         sleep(15);
 //        sleep(20);
 //        sleep(20);
@@ -195,13 +186,14 @@ void signal_handler_user_sig_test(){
         printf("fork failed\n");
     }
     else if (child_pid > 0) { // father
-        sleep(20);
+        sleep(10);
         int kill_res = -9;
         kill_res = kill(child_pid, 2);
+        kill(child_pid, 2);
 //        printf("first kill_res: %d\n",kill_res);
         kill_res = kill(child_pid, 3);
 //        printf("sec kill_res: %d\n",kill_res);
-//        kill_res = kill(child_pid, 4);
+        kill_res = kill(child_pid, 4);
 //        printf("third kill_res: %d\n",kill_res);
         int status = kill_res;
         wait(&status);
@@ -218,11 +210,11 @@ void signal_handler_user_sig_test(){
         act.sa_handler = handler4;
         sigaction(4,&act,&oldact);
         sleep(20);
-        printf("Child sleep 1\n");
-        sleep(20);
-        printf("Child sleep 2\n");
-        sleep(20);
-        printf("Child sleep 3\n");
+//        printf("Child sleep 1\n");
+//        sleep(20);
+//        printf("Child sleep 2\n");
+//        sleep(20);
+//        printf("Child sleep 3\n");
 //        for(int i = 1; i <= 100; i++){
 //            printf("counting: %d \n",i);
 //            sleep(1);
@@ -232,7 +224,7 @@ void signal_handler_user_sig_test(){
 }
 
 int main(int argc, char *argv[]) {
-//    signal_handler_kernel_sig_test();
+    signal_handler_kernel_sig_test();
     signal_handler_user_sig_test();
 //    printf("PID: %d\n", getpid());
 //    sigprocmastk_test();

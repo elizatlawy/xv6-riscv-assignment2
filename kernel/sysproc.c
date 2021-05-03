@@ -133,8 +133,9 @@ uint64 sys_sigret(void){
     //restore mask backup
     acquire(&p->lock);
     p->signal_mask = p->signal_mask_backup;
+    p->in_usr_sig_handler = 0;
     release(&p->lock);
-    signal_handler();
+//    signal_handler();
     return 0;
 }
 

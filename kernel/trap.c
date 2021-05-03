@@ -93,16 +93,15 @@ usertrap(void) {
 //
 void
 usertrapret(void) {
-    /// Task 2.4
     // handle pending signals before switching to userspace
-    signal_handler();
     struct proc *p = myproc();
     struct thread *t = mythread();
     // we're about to switch the destination of traps from
     // kerneltrap() to usertrap(), so turn off interrupts until
     // we're back in user space, where usertrap() is correct.
     intr_off();
-
+    /// Task 2.4
+    signal_handler();
     // send syscalls, interrupts, and exceptions to trampoline.S
     w_stvec(TRAMPOLINE + (uservec - trampoline));
 

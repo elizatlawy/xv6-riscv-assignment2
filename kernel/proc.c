@@ -857,56 +857,50 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 
 /// Task 2.4
 /// Checking for the process's 32 possible pending signals and handling them.
+// TODO: shold we lcok the fucnrion so only 1 thread will handle all the each signal each time?
 void signal_handler(void) {
     struct proc *p = myproc();
     struct thread *t = mythread();
     int pending_signal_bit;
     int mask_signal_bit;
-    if(p == 0) // check if process is not NULL
+    if(p == 0 || t == 0) // check if process & thread not NULL
         return;
     for (int i = 0; i < 32; i++) {
+        acquire(&p->lock);
         pending_signal_bit = p->pending_signals & (1 << i); // Check if the bit in position i of pend_sig is 1
         mask_signal_bit = p->signal_mask & (1 << i);   // Check if the bit in the i place at the mask is 1
         if (pending_signal_bit && !mask_signal_bit) {  //SIGSTOP and SIGKILL can not be blocked
             if (p->signal_handlers[i] == (void *) SIG_DFL || p->signal_handlers[i] == (void *) SIGKILL) { // SIGKILL Handling
-                acquire(&p->lock);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-                release(&p->lock);
-                exit(-1); // TODO: should exit status be -1?
+                exit(-1);
             } else if (p->signal_handlers[i] == (void *) SIGSTOP) { // SIGKILL Handling
                 p->frozen = 1;
                 while ((p->pending_signals & (1 << SIGCONT)) == 0) { // while SIGCONT is not turned on
-                    // TODO: if we while here we won't handle SIGKILL that arrives before SIGCONT
+                    release(&p->lock);
+                    // TODO: SIGSTOP SHOULD STOP ALL THREAD IN THIS PROC HOW?
                     yield();
+                    acquire(&p->lock);
                     // check if SIGKILL is received before SIGCONT
                     if(p->pending_signals & (1 << SIGKILL)){
                         p->pending_signals ^= (1 << SIGKILL);
-                        exit(-1); // TODO: should exit status be -1?
+                        release(&p->lock);
+                        exit(-1);
                     }
                 }
-                acquire(&p->lock);
                 p->frozen = 0;
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
                 p->pending_signals ^= (1 << 19); // Set the bit of the signal back to zero (bitwise xor)
-                release(&p->lock);
             }
                 // just in case SIGCONT received and the process is not on SIGSTOP
             else if (p->signal_handlers[i] == (void *) SIGCONT) { // SIGKILL Handling
-                acquire(&p->lock);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-                release(&p->lock);
             } else if (p->signal_handlers[i] ==(void *) SIG_IGN) { // The handler of the current signal is IGN, thus we ignore the current signal
-                acquire(&p->lock);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-
-                release(&p->lock);
             }
-                // Handling user space handler
-            else {
-                acquire(&p->lock);
-//                printf("inside signal_handler() -> user space handler case pending_signals BEFORE turn of: %d signal num: %d\n", p->pending_signals, i);
+            // Handling user space handler only if the proc is not currently in user-space sig-handler
+            else if (!p->in_usr_sig_handler) {
+                p->in_usr_sig_handler = 1;
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero
-//                printf("inside signal_handler() -> user space handler case pending_signals AFTER turn of: %d signal num: %d\n", p->pending_signals, i);
                 // Backup mask
                 p->signal_mask_backup = p->signal_mask;
                 p->signal_mask = p->signal_mask_arr[i];
@@ -920,8 +914,9 @@ void signal_handler(void) {
                 t->trapframe->a0 = i; // Save signum argument
                 t->trapframe->epc = (uint64) p->signal_handlers[i]; // move handler[i] function to epc in order to run the user handler
                 release(&p->lock);
-                return; // TODO how do we continue to the next iteration, if so.
+                return;
             }
         }
+        release(&p->lock);
     }
 }
