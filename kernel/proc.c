@@ -170,6 +170,10 @@ allocproc(void) {
     found:
     p->pid = allocpid();
     p->state = USED;
+    p->signal_handlers[1] = (void *)SIG_IGN;
+    p->signal_handlers[9] = (void *)SIGKILL;
+    p->signal_handlers[17] = (void *)SIGSTOP;
+    p->signal_handlers[19] = (void *)SIGCONT;
     if (!allocthread(p)) {
         freeproc(p);
 //        printf("in allocproc start release to PID: %d \n", p->pid);
@@ -241,9 +245,13 @@ freeproc(struct proc *p) {
     p->pending_signals = 0;
     p->signal_mask = 0;
     for (int i = 0; i < 32; i++) {
-        p->signal_handlers[i] = (void *) SIG_DFL;
+        p->signal_handlers[i] = (void *)SIG_DFL;
         p->signal_mask_arr[i] = 0;
     }
+    p->signal_handlers[1] = (void *)SIG_IGN;
+    p->signal_handlers[9] = (void *)SIGKILL;
+    p->signal_handlers[17] = (void *)SIGSTOP;
+    p->signal_handlers[19] = (void *)SIGCONT;
     p->state = UNUSED;
 }
 
@@ -451,6 +459,7 @@ exit(int status) {
         if (active_thread) {
             yield();
         } else {
+//            t->should_exit = 1;
             exit_process(status);
         }
     }
@@ -474,7 +483,7 @@ exit_thread(int status) {
             active_thread = 1;
         }
     }
-    if(!active_thread){
+    if (!active_thread) {
         release(&p->lock);
         exit_process(status);
     }
@@ -710,16 +719,17 @@ void
 wakeup(void *chan) {
     struct proc *p;
     for (p = proc; p < &proc[NPROC]; p++) {
-        acquire(&p->lock);
         for (int i = 0; i < p->threads_num; i++) {
             struct thread *t = &p->threads[i];
             if (t != mythread()) {
+                acquire(&p->lock);
                 if (t->state == SLEEPING && t->chan == chan) {
                     t->state = RUNNABLE;
                 }
+                release(&p->lock);
             }
+
         }
-        release(&p->lock);
     }
 }
 
@@ -852,37 +862,58 @@ void signal_handler(void) {
     struct thread *t = mythread();
     int pending_signal_bit;
     int mask_signal_bit;
+    if(p == 0) // check if process is not NULL
+        return;
     for (int i = 0; i < 32; i++) {
-        acquire(&p->lock);
         pending_signal_bit = p->pending_signals & (1 << i); // Check if the bit in position i of pend_sig is 1
         mask_signal_bit = p->signal_mask & (1 << i);   // Check if the bit in the i place at the mask is 1
-        if (pending_signal_bit &&
-            (!mask_signal_bit || i == SIGKILL || i == SIGSTOP)) {  //SIGSTOP and SIGKILL can not be blocked
-            if (i == SIGKILL || p->signal_handlers[i] == (void *) SIG_DFL ||
-                p->signal_handlers[i] == (void *) SIGKILL) { // SIGKILL Handling
+        if (pending_signal_bit && !mask_signal_bit) {  //SIGSTOP and SIGKILL can not be blocked
+            if (p->signal_handlers[i] == (void *) SIG_DFL || p->signal_handlers[i] == (void *) SIGKILL) { // SIGKILL Handling
+                acquire(&p->lock);
+                printf("inside signal_handler() -> SIGKILL CASE pending_signals BEFORE turn of: %d signal num: %d\n", p->pending_signals, i);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
+                printf("inside signal_handler() -> SIGKILL CASE pending_signals AFTER turn of: %d signal num: %d\n", p->pending_signals, i);
                 release(&p->lock);
-                exit(-1);
-            } else if (i == SIGSTOP || p->signal_handlers[i] == (void *) SIGSTOP) { // SIGKILL Handling
+                exit(-1); // TODO: should exit status be -1?
+            } else if (p->signal_handlers[i] == (void *) SIGSTOP) { // SIGKILL Handling
+                printf("inside signal_handler() -> SIGSTOP CASE pending_signals BEFORE turn of: %d signal num: %d\n", p->pending_signals, i);
                 p->frozen = 1;
                 while ((p->pending_signals & (1 << SIGCONT)) == 0) { // while SIGCONT is not turned on
-                    release(&p->lock);
+                    // TODO: if we while here we won't handle SIGKILL that arrives before SIGCONT
                     yield();
-                    acquire(&p->lock);
+                    // check if SIGKILL is received before SIGCONT
+                    if(p->pending_signals & (1 << SIGKILL)){
+                        p->pending_signals ^= (1 << SIGKILL);
+                        exit(-1); // TODO: should exit status be -1?
+                    }
                 }
+                printf("inside signal_handler() -> SIGSTOP CASE -> received SIGCONT\n");
+                acquire(&p->lock);
                 p->frozen = 0;
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
                 p->pending_signals ^= (1 << 19); // Set the bit of the signal back to zero (bitwise xor)
+                printf("inside signal_handler() -> SIGSTOP CASE pending_signals AFTER turn of: %d signal num: %d\n", p->pending_signals, i);
+                release(&p->lock);
             }
                 // just in case SIGCONT received and the process is not on SIGSTOP
-            else if (i == SIGCONT || p->signal_handlers[i] == (void *) SIGCONT) { // SIGKILL Handling
+            else if (p->signal_handlers[i] == (void *) SIGCONT) { // SIGKILL Handling
+                acquire(&p->lock);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-            } else if (p->signal_handlers[i] ==
-                       (void *) SIG_IGN) { // The handler of the current signal is IGN, thus we ignore the current signal
-                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero
+                release(&p->lock);
+            } else if (p->signal_handlers[i] ==(void *) SIG_IGN) { // The handler of the current signal is IGN, thus we ignore the current signal
+                acquire(&p->lock);
+                printf("inside signal_handler() -> SIG_IGN CASE pending_signals BEFORE turn of: %d signal num: %d\n", p->pending_signals, i);
+                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
+                printf("inside signal_handler() -> SIG_IGN CASE pending_signals AFTER turn of: %d signal num: %d\n", p->pending_signals, i);
+
+                release(&p->lock);
             }
                 // Handling user space handler
             else {
+                acquire(&p->lock);
+                printf("inside signal_handler() -> user space handler case pending_signals BEFORE turn of: %d signal num: %d\n", p->pending_signals, i);
+                p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero
+                printf("inside signal_handler() -> user space handler case pending_signals AFTER turn of: %d signal num: %d\n", p->pending_signals, i);
                 // Backup mask
                 p->signal_mask_backup = p->signal_mask;
                 p->signal_mask = p->signal_mask_arr[i];
@@ -895,11 +926,9 @@ void signal_handler(void) {
                 t->trapframe->ra = t->trapframe->sp; // Return address is the code on stack
                 t->trapframe->a0 = i; // Save signum argument
                 t->trapframe->epc = (uint64) p->signal_handlers[i]; // move handler[i] function to epc in order to run the user handler
-                p->pending_signals ^= (1
-                        << i); // Set the bit of the signal back to zero // TODO understand when we return to this line
+                release(&p->lock);
                 return; // TODO how do we continue to the next iteration, if so.
             }
         }
-        release(&p->lock);
     }
 }

@@ -93,6 +93,11 @@ uint64 sys_sigprocmask(void) {
     int new_mask;
     if (argint(0, &new_mask) < 0)
         return -1;
+    int sigkill_bit = new_mask & (1 << SIGKILL);
+    int sigstop_bit = new_mask & (1 << SIGSTOP);
+    // Ignoring SIGKILL or SIGSTOP is not allowed return error
+    if(sigkill_bit || sigstop_bit)
+        return -1;
     acquire(&myproc()->lock);
     int old_mask = myproc()->signal_mask;
     myproc()->signal_mask = new_mask;
@@ -106,6 +111,7 @@ uint64 sys_sigaction(void) {
     int signum;
     if (argint(0, &signum) < 0 || signum < 0 || signum > 31)
         return -1;
+    // we cannot modify SIGKILL & SIGSTOP
     if(signum == SIGKILL || signum == SIGSTOP)
         return -1;
     uint64 act_ptr;
@@ -125,8 +131,10 @@ uint64 sys_sigret(void){
     // restore trapframe backup.
     memmove(t->trapframe,t->usertrap_backup,sizeof(struct trapframe));
     //restore mask backup
+    acquire(&p->lock);
     p->signal_mask = p->signal_mask_backup;
     release(&p->lock);
+    signal_handler();
     return 0;
 }
 

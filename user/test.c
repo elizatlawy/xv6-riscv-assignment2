@@ -62,33 +62,30 @@ void sigprocmastk_test() {
     }
 }
 
-void handler(int x) {
-    printf("Hey");
 
-}
 
-void sigaction_test() {
-    struct sigaction act;
-//    int sig_kill = 9;
-    act.sa_handler = handler; // put the address of func handler
-//    act.sa_handler = (void*)9;
-    act.sigmask = (1 << 9);
-    printf("handler address: %d\n", act.sa_handler);
-    printf("act sigmask: %d\n", act.sigmask);
-    struct sigaction old_act;
-    sigaction(15, &act, &old_act);
-    printf("old act sigmask %d\n", old_act.sigmask);
-    printf("old act sigmask %d\n", old_act.sa_handler);
-    struct sigaction act2;
-    act2.sigmask = (1 << 9);
-    act2.sa_handler = do_stuff2;
-    printf("do_stuff2 address: %d\n", act2.sa_handler);
-    printf("act2 sigmask: %d\n", act2.sigmask);
-    struct sigaction old_act2;
-    sigaction(15, &act, &old_act2);
-    printf("old act2 sigmask %d\n", old_act2.sigmask);
-    printf("old act2 address %d\n", old_act2.sa_handler);
-}
+//void sigaction_test() {
+//    struct sigaction act;
+////    int sig_kill = 9;
+//    act.sa_handler = handler2; // put the address of func handler
+////    act.sa_handler = (void*)9;
+//    act.sigmask = (1 << 9);
+//    printf("handler address: %d\n", act.sa_handler);
+//    printf("act sigmask: %d\n", act.sigmask);
+//    struct sigaction old_act;
+//    sigaction(15, &act, &old_act);
+//    printf("old act sigmask %d\n", old_act.sigmask);
+//    printf("old act sigmask %d\n", old_act.sa_handler);
+//    struct sigaction act2;
+//    act2.sigmask = (1 << 9);
+//    act2.sa_handler = do_stuff2;
+//    printf("do_stuff2 address: %d\n", act2.sa_handler);
+//    printf("act2 sigmask: %d\n", act2.sigmask);
+//    struct sigaction old_act2;
+//    sigaction(15, &act, &old_act2);
+//    printf("old act2 sigmask %d\n", old_act2.sigmask);
+//    printf("old act2 address %d\n", old_act2.sa_handler);
+//}
 
 void kill_test() {
     int child_pid = fork();
@@ -129,8 +126,68 @@ void fork_test(){
     }
 }
 
-int main(int argc, char *argv[]) {
+void handler2(int x) {
+    printf("handler 2 done\n");
+}
 
+void handler3(int x) {
+    printf("handler 3 done\n");
+}
+
+void handler4(int x) {
+    printf("handler 4 done\n");
+}
+
+void sighandler_test(){
+    int child_pid = fork();
+    if (child_pid < 0) {
+        printf("fork failed\n");
+    }
+    else if (child_pid > 0) { // father
+        sleep(20);
+        int kill_res = -9;
+//        kill_res = kill(child_pid, 2);
+//        printf("first kill_res: %d\n",kill_res);
+//        kill_res = kill(child_pid, 2); // SIG_IGN
+//        printf("sec kill_res: %d\n",kill_res);
+//        kill_res = kill(child_pid, 3); // SIG_IGN
+//        printf("third kill_res: %d\n",kill_res);
+        sleep(10);
+        kill_res = kill(child_pid, 17); // SIGSTOP
+        printf(" SIGSTOP sent to child: %d with res: %d\n",child_pid,kill_res);
+        sleep(10);
+        kill_res = kill(child_pid, 19); // SIGCONT
+        printf(" SIGCONT sent to child: %d with res: %d\n",child_pid,kill_res);
+        sleep(10);
+        kill_res = kill(child_pid, 9); // SIGKILL
+        printf(" SIGKILL sent to child: %d with res: %d\n",child_pid,kill_res);
+        int status;
+        wait(&status);
+        printf("Child PID: %d exit with status: %d\n",child_pid, status);
+    } else { // child
+//        struct sigaction act;
+//        act.sigmask = 0;
+//        struct  sigaction oldact;
+//        act.sa_handler = (void*)1; // put the address of func handler
+//        sigaction(2,&act,&oldact);
+//        struct sigaction act2;
+//        act2.sa_handler = (void*)1; // SIG_IGN
+//        sigaction(3,&act2,&oldact);
+//        act.sa_handler = handler4;
+//        sigaction(4,&act,&oldact);
+        sleep(15);
+//        sleep(20);
+//        sleep(20);
+        for(int i = 1; i <= 100; i++){
+            printf("counting: %d \n",i);
+            sleep(1);
+        }
+//        for(;;);
+    }
+}
+
+int main(int argc, char *argv[]) {
+    sighandler_test();
 //    printf("PID: %d\n", getpid());
 //    sigprocmastk_test();
 //    sigaction_test();

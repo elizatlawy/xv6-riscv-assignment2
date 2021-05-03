@@ -113,10 +113,14 @@ exec(char *path, char **argv)
   // clear signal handlers
   for (i = 0; i < 32; i++){
       if (p->signal_handlers[i] != (void*) SIG_IGN){
-          p->signal_handlers[i] =  SIG_DFL;
+          p->signal_handlers[i] =  (void *)SIG_DFL;
           p->signal_mask_arr[i] = 0;
       }
   }
+    p->signal_handlers[1] = (void *)SIG_IGN;
+    p->signal_handlers[9] = (void *)SIGKILL;
+    p->signal_handlers[17] = (void *)SIGSTOP;
+    p->signal_handlers[19] = (void *)SIGCONT;
     
   // Commit to the user image.
   oldpagetable = p->pagetable;
