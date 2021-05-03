@@ -866,39 +866,44 @@ void signal_handler(void) {
     if(p == 0 || t == 0) // check if process & thread not NULL
         return;
     for (int i = 0; i < 32; i++) {
-        acquire(&p->lock);
         pending_signal_bit = p->pending_signals & (1 << i); // Check if the bit in position i of pend_sig is 1
         mask_signal_bit = p->signal_mask & (1 << i);   // Check if the bit in the i place at the mask is 1
         if (pending_signal_bit && !mask_signal_bit) {  //SIGSTOP and SIGKILL can not be blocked
             if (p->signal_handlers[i] == (void *) SIG_DFL || p->signal_handlers[i] == (void *) SIGKILL) { // SIGKILL Handling
+                acquire(&p->lock);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
+                release(&p->lock);
                 exit(-1);
             } else if (p->signal_handlers[i] == (void *) SIGSTOP) { // SIGKILL Handling
                 p->frozen = 1;
                 while ((p->pending_signals & (1 << SIGCONT)) == 0) { // while SIGCONT is not turned on
-                    release(&p->lock);
-                    // TODO: SIGSTOP SHOULD STOP ALL THREAD IN THIS PROC HOW?
+                    // TODO: should all thread of this proc be frozen or just the current one?
                     yield();
-                    acquire(&p->lock);
                     // check if SIGKILL is received before SIGCONT
                     if(p->pending_signals & (1 << SIGKILL)){
                         p->pending_signals ^= (1 << SIGKILL);
-                        release(&p->lock);
                         exit(-1);
                     }
                 }
+                acquire(&p->lock);
                 p->frozen = 0;
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
                 p->pending_signals ^= (1 << 19); // Set the bit of the signal back to zero (bitwise xor)
+                release(&p->lock);
             }
                 // just in case SIGCONT received and the process is not on SIGSTOP
             else if (p->signal_handlers[i] == (void *) SIGCONT) { // SIGKILL Handling
+                acquire(&p->lock);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
+                release(&p->lock);
             } else if (p->signal_handlers[i] ==(void *) SIG_IGN) { // The handler of the current signal is IGN, thus we ignore the current signal
+                acquire(&p->lock);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
+                release(&p->lock);
             }
             // Handling user space handler only if the proc is not currently in user-space sig-handler
             else if (!p->in_usr_sig_handler) {
+                acquire(&p->lock);
                 p->in_usr_sig_handler = 1;
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero
                 // Backup mask
@@ -917,6 +922,5 @@ void signal_handler(void) {
                 return;
             }
         }
-        release(&p->lock);
     }
 }
