@@ -138,7 +138,7 @@ void handler4(int x) {
     printf("handler 4 done\n");
 }
 
-void sighandler_test(){
+void signal_handler_kernel_sig_test(){
     int child_pid = fork();
     if (child_pid < 0) {
         printf("fork failed\n");
@@ -182,12 +182,58 @@ void sighandler_test(){
             printf("counting: %d \n",i);
             sleep(1);
         }
+//        for(;;)
+    }
+}
+// TODO: understand if it is a real bug!!
+void signal_handler_user_sig_test(){
+    printf("addr is %p\n", handler2);
+    printf("addr is %p\n", handler3);
+    printf("addr is %p\n", handler4);
+    int child_pid = fork();
+    if (child_pid < 0) {
+        printf("fork failed\n");
+    }
+    else if (child_pid > 0) { // father
+        sleep(20);
+        int kill_res = -9;
+        kill_res = kill(child_pid, 2);
+//        printf("first kill_res: %d\n",kill_res);
+        kill_res = kill(child_pid, 3);
+//        printf("sec kill_res: %d\n",kill_res);
+//        kill_res = kill(child_pid, 4);
+//        printf("third kill_res: %d\n",kill_res);
+        int status = kill_res;
+        wait(&status);
+        printf("Child PID: %d exit with status: %d\n",child_pid, status);
+    } else { // child
+        struct sigaction act;
+        act.sigmask = 0;
+        struct  sigaction oldact;
+        act.sa_handler = handler2; // put the address of func handler
+        sigaction(2,&act,&oldact);
+        struct sigaction act2;
+        act2.sa_handler = handler3; // SIG_IGN
+        sigaction(3,&act2,&oldact);
+        act.sa_handler = handler4;
+        sigaction(4,&act,&oldact);
+        sleep(20);
+        printf("Child sleep 1\n");
+        sleep(20);
+        printf("Child sleep 2\n");
+        sleep(20);
+        printf("Child sleep 3\n");
+//        for(int i = 1; i <= 100; i++){
+//            printf("counting: %d \n",i);
+//            sleep(1);
+//        }
 //        for(;;);
     }
 }
 
 int main(int argc, char *argv[]) {
-    sighandler_test();
+//    signal_handler_kernel_sig_test();
+    signal_handler_user_sig_test();
 //    printf("PID: %d\n", getpid());
 //    sigprocmastk_test();
 //    sigaction_test();

@@ -870,13 +870,10 @@ void signal_handler(void) {
         if (pending_signal_bit && !mask_signal_bit) {  //SIGSTOP and SIGKILL can not be blocked
             if (p->signal_handlers[i] == (void *) SIG_DFL || p->signal_handlers[i] == (void *) SIGKILL) { // SIGKILL Handling
                 acquire(&p->lock);
-                printf("inside signal_handler() -> SIGKILL CASE pending_signals BEFORE turn of: %d signal num: %d\n", p->pending_signals, i);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-                printf("inside signal_handler() -> SIGKILL CASE pending_signals AFTER turn of: %d signal num: %d\n", p->pending_signals, i);
                 release(&p->lock);
                 exit(-1); // TODO: should exit status be -1?
             } else if (p->signal_handlers[i] == (void *) SIGSTOP) { // SIGKILL Handling
-                printf("inside signal_handler() -> SIGSTOP CASE pending_signals BEFORE turn of: %d signal num: %d\n", p->pending_signals, i);
                 p->frozen = 1;
                 while ((p->pending_signals & (1 << SIGCONT)) == 0) { // while SIGCONT is not turned on
                     // TODO: if we while here we won't handle SIGKILL that arrives before SIGCONT
@@ -887,12 +884,10 @@ void signal_handler(void) {
                         exit(-1); // TODO: should exit status be -1?
                     }
                 }
-                printf("inside signal_handler() -> SIGSTOP CASE -> received SIGCONT\n");
                 acquire(&p->lock);
                 p->frozen = 0;
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
                 p->pending_signals ^= (1 << 19); // Set the bit of the signal back to zero (bitwise xor)
-                printf("inside signal_handler() -> SIGSTOP CASE pending_signals AFTER turn of: %d signal num: %d\n", p->pending_signals, i);
                 release(&p->lock);
             }
                 // just in case SIGCONT received and the process is not on SIGSTOP
@@ -902,18 +897,16 @@ void signal_handler(void) {
                 release(&p->lock);
             } else if (p->signal_handlers[i] ==(void *) SIG_IGN) { // The handler of the current signal is IGN, thus we ignore the current signal
                 acquire(&p->lock);
-                printf("inside signal_handler() -> SIG_IGN CASE pending_signals BEFORE turn of: %d signal num: %d\n", p->pending_signals, i);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-                printf("inside signal_handler() -> SIG_IGN CASE pending_signals AFTER turn of: %d signal num: %d\n", p->pending_signals, i);
 
                 release(&p->lock);
             }
                 // Handling user space handler
             else {
                 acquire(&p->lock);
-                printf("inside signal_handler() -> user space handler case pending_signals BEFORE turn of: %d signal num: %d\n", p->pending_signals, i);
+//                printf("inside signal_handler() -> user space handler case pending_signals BEFORE turn of: %d signal num: %d\n", p->pending_signals, i);
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero
-                printf("inside signal_handler() -> user space handler case pending_signals AFTER turn of: %d signal num: %d\n", p->pending_signals, i);
+//                printf("inside signal_handler() -> user space handler case pending_signals AFTER turn of: %d signal num: %d\n", p->pending_signals, i);
                 // Backup mask
                 p->signal_mask_backup = p->signal_mask;
                 p->signal_mask = p->signal_mask_arr[i];
