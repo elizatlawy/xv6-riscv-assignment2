@@ -13,7 +13,10 @@ struct proc proc[NPROC];
 struct proc *initproc;
 
 int nextpid = 1;
+int nexttid = 1;
 struct spinlock pid_lock;
+struct spinlock tid_lock;
+
 
 
 extern void forkret(void);
@@ -55,6 +58,7 @@ void
 procinit(void) {
     struct proc *p;
     initlock(&pid_lock, "nextpid");
+    initlock(&pid_lock, "nexttid");
     initlock(&wait_lock, "wait_lock");
     for (p = proc; p < &proc[NPROC]; p++) {
         initlock(&p->lock, "proc");
@@ -121,14 +125,21 @@ allocpid() {
     release(&pid_lock);
     return pid;
 }
+int
+alloctid() {
+    int tid;
+    acquire(&tid_lock);
+    tid = nexttid;
+    nexttid = nexttid + 1;
+    release(&tid_lock);
+    return tid;
+}
 
 /// should lock p->locked before calling this function!!
 int allocthread(struct proc *p) {
     struct thread *t;
     int found = 0;
-    int t_id = 0;
     for (t = p->threads; found != 1 && t < &p->threads[NTHREADS]; t++) {
-        t_id++;
         if (t->state == UNUSED_T) {
             goto found;
         } else if (t->state == ZOMBIE_T) {
@@ -143,7 +154,7 @@ int allocthread(struct proc *p) {
     // else found unused thread
     p->threads_num++;
     t->parent = p;
-    t->tid = t_id; // thread id is it's number in the array
+    t->tid = alloctid(); // thread id is it's number in the array
     t->state = USED_T;
     // TODO: is the kalloc is ok?
     // Allocate a trapframe page.
