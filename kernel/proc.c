@@ -170,10 +170,10 @@ allocproc(void) {
     found:
     p->pid = allocpid();
     p->state = USED;
-    p->signal_handlers[1] = (void *)SIG_IGN;
-    p->signal_handlers[9] = (void *)SIGKILL;
-    p->signal_handlers[17] = (void *)SIGSTOP;
-    p->signal_handlers[19] = (void *)SIGCONT;
+    p->signal_handlers[1] = (void *) SIG_IGN;
+    p->signal_handlers[9] = (void *) SIGKILL;
+    p->signal_handlers[17] = (void *) SIGSTOP;
+    p->signal_handlers[19] = (void *) SIGCONT;
     if (!allocthread(p)) {
         freeproc(p);
 //        printf("in allocproc start release to PID: %d \n", p->pid);
@@ -245,13 +245,13 @@ freeproc(struct proc *p) {
     p->pending_signals = 0;
     p->signal_mask = 0;
     for (int i = 0; i < 32; i++) {
-        p->signal_handlers[i] = (void *)SIG_DFL;
+        p->signal_handlers[i] = (void *) SIG_DFL;
         p->signal_mask_arr[i] = 0;
     }
-    p->signal_handlers[1] = (void *)SIG_IGN;
-    p->signal_handlers[9] = (void *)SIGKILL;
-    p->signal_handlers[17] = (void *)SIGSTOP;
-    p->signal_handlers[19] = (void *)SIGCONT;
+    p->signal_handlers[1] = (void *) SIG_IGN;
+    p->signal_handlers[9] = (void *) SIGKILL;
+    p->signal_handlers[17] = (void *) SIGSTOP;
+    p->signal_handlers[19] = (void *) SIGCONT;
     p->state = UNUSED;
 }
 
@@ -455,11 +455,13 @@ exit(int status) {
                 active_thread = 1;
             }
         }
-        release(&p->lock);
         if (active_thread) {
+            release(&p->lock);
             yield();
         } else {
+            // mythread() is the last active in this proc
 //            t->should_exit = 1;
+            release(&p->lock);
             exit_process(status);
         }
     }
@@ -484,6 +486,7 @@ exit_thread(int status) {
         }
     }
     if (!active_thread) {
+        // mythread() is the last active in this proc
         release(&p->lock);
         exit_process(status);
     }
@@ -553,14 +556,14 @@ wait(uint64 addr) {
                         release(&wait_lock);
                         return -1;
                     }
-                    for (int i = 0; i < np->threads_num; i++) {
-                        struct thread *t = &np->threads[i];
-                        if (t->state == ZOMBIE_T) {
+                    struct thread *curr_t;
+                    for (curr_t = np->threads; curr_t < &np->threads[NTHREADS]; curr_t++) {
+                        if (curr_t->state == ZOMBIE_T) {
                             // t -> lock mush be locked when calling freethread
-                            freethread(t);
+                            freethread(curr_t);
                         }
-                        if (t->state != ZOMBIE_T && t->state != UNUSED_T) {
-                            panic("in Wait() Process zombie have thread that is not ZOMBIE_T");
+                        if (curr_t->state != ZOMBIE_T && curr_t->state != UNUSED_T) {
+                            panic("in Wait() Process zombie have thread that is not ZOMBIE_T or UNUSED_T");
                         }
                     }
                     freeproc(np);
@@ -593,6 +596,7 @@ void
 scheduler(void) {
     struct proc *p;
     struct cpu *c = mycpu();
+    struct thread *t;
     c->proc = 0;
     c->thread = 0;
     for (;;) {
@@ -602,8 +606,7 @@ scheduler(void) {
         for (p = proc; p < &proc[NPROC]; p++) {
             acquire(&p->lock);
             if (p->state == USED) {
-                for (int i = 0; i < p->threads_num; i++) {
-                    struct thread *t = &p->threads[i];
+                for (t = p->threads; t < &p->threads[NTHREADS]; t++) {
                     if (t->state == RUNNABLE) {
                         // Switch to chosen process.  It is the process's job
                         // to release its lock and then reacquire it
@@ -718,21 +721,21 @@ sleep(void *chan, struct spinlock *lk) {
 void
 wakeup(void *chan) {
     struct proc *p;
+    struct thread *t;
     for (p = proc; p < &proc[NPROC]; p++) {
-        for (int i = 0; i < p->threads_num; i++) {
-            struct thread *t = &p->threads[i];
-            if (t != mythread()) {
-                acquire(&p->lock);
-                // if t is wakeup when is proc parent is frozen then it should stop
-                if (t->parent->frozen  && t->chan == chan) {
-                    t->state = STOPPED;
+        if (p->state == USED) {
+            for (t = p->threads; t < &p->threads[NTHREADS]; t++) {
+                if (t != mythread()) {
+                    acquire(&p->lock);
+                    // if t is wakeup when is proc parent is frozen then it should stop
+                    if (t->state == SLEEPING && t->parent->frozen && t->chan == chan) {
+                        t->state = STOPPED;
+                    } else if (t->state == SLEEPING && t->chan == chan) {
+                        t->state = RUNNABLE;
+                    }
+                    release(&p->lock);
                 }
-                else if (t->state == SLEEPING && t->chan == chan) {
-                    t->state = RUNNABLE;
-                }
-                release(&p->lock);
             }
-
         }
     }
 }
@@ -867,14 +870,15 @@ void signal_handler(void) {
     struct thread *t = mythread();
     int pending_signal_bit;
     int mask_signal_bit;
-    if(p == 0 || t == 0) // check if process & thread not NULL
+    if (p == 0 || t == 0) // check if process & thread not NULL
         return;
     for (int i = 0; i < 32; i++) {
         acquire(&p->lock);
         pending_signal_bit = p->pending_signals & (1 << i); // Check if the bit in position i of pend_sig is 1
         mask_signal_bit = p->signal_mask & (1 << i);   // Check if the bit in the i place at the mask is 1
         if (pending_signal_bit && !mask_signal_bit) {  //SIGSTOP and SIGKILL can not be blocked
-            if (p->signal_handlers[i] == (void *) SIG_DFL || p->signal_handlers[i] == (void *) SIGKILL) { // SIGKILL Handling
+            if (p->signal_handlers[i] == (void *) SIG_DFL ||
+                p->signal_handlers[i] == (void *) SIGKILL) { // SIGKILL Handling
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
                 release(&p->lock);
                 exit(-1);
@@ -882,8 +886,8 @@ void signal_handler(void) {
                 p->frozen = 1;
                 // need to stop all other threads in this proc except mythread() that should wait to be released or killed
                 struct thread *curr_t;
-                for (curr_t = p->threads; curr_t < &p->threads[NTHREADS]; curr_t++){
-                    if(curr_t->tid != t->tid && (curr_t->state == RUNNING || curr_t->state == RUNNABLE))
+                for (curr_t = p->threads; curr_t < &p->threads[NTHREADS]; curr_t++) {
+                    if (curr_t->tid != t->tid && (curr_t->state == RUNNING || curr_t->state == RUNNABLE))
                         curr_t->state = STOPPED;
                 }
                 while ((p->pending_signals & (1 << SIGCONT)) == 0) { // while SIGCONT is not turned on
@@ -892,10 +896,10 @@ void signal_handler(void) {
                     yield();
                     acquire(&p->lock);
                     // check if SIGKILL is received before SIGCONT
-                    if(p->pending_signals & (1 << SIGKILL)){
+                    if (p->pending_signals & (1 << SIGKILL)) {
                         p->pending_signals ^= (1 << SIGKILL);
-                        for (curr_t = p->threads; curr_t < &p->threads[NTHREADS]; curr_t++){
-                            if(curr_t->tid != t->tid && curr_t->state == STOPPED)
+                        for (curr_t = p->threads; curr_t < &p->threads[NTHREADS]; curr_t++) {
+                            if (curr_t->tid != t->tid && curr_t->state == STOPPED)
                                 curr_t->state = RUNNABLE;
                         }
                         release(&p->lock);
@@ -904,8 +908,8 @@ void signal_handler(void) {
                 }
                 p->frozen = 0;
                 // release all other threads of p form stopped
-                for (curr_t = p->threads; curr_t < &p->threads[NTHREADS]; curr_t++){
-                    if(curr_t->tid != t->tid && curr_t->state == STOPPED)
+                for (curr_t = p->threads; curr_t < &p->threads[NTHREADS]; curr_t++) {
+                    if (curr_t->tid != t->tid && curr_t->state == STOPPED)
                         curr_t->state = RUNNABLE;
                 }
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
@@ -914,10 +918,11 @@ void signal_handler(void) {
                 // just in case SIGCONT received and the process is not on SIGSTOP
             else if (p->signal_handlers[i] == (void *) SIGCONT) { // SIGKILL Handling
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-            } else if (p->signal_handlers[i] ==(void *) SIG_IGN) { // The handler of the current signal is IGN, thus we ignore the current signal
+            } else if (p->signal_handlers[i] ==
+                       (void *) SIG_IGN) { // The handler of the current signal is IGN, thus we ignore the current signal
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
             }
-            // Handling user space handler only if the proc is not currently in user-space sig-handler
+                // Handling user space handler only if the proc is not currently in user-space sig-handler
             else if (!p->in_usr_sig_handler) {
                 p->in_usr_sig_handler = 1;
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero

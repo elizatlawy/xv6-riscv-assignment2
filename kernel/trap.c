@@ -69,7 +69,6 @@ usertrap(void) {
         printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
         t->killed = 1;
     }
-    //  TODO: why t killed here?
     if (t->killed){
 //        printf("in usertrap Thread EXIT TID: %d form PID: %d Killed\n",t->tid, p->pid);
         exit_thread(-1);
