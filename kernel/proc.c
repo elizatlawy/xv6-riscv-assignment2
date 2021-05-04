@@ -723,7 +723,11 @@ wakeup(void *chan) {
             struct thread *t = &p->threads[i];
             if (t != mythread()) {
                 acquire(&p->lock);
-                if (t->state == SLEEPING && t->chan == chan) {
+                // if t is wakeup when is proc parent is frozen then it should stop
+                if (t->parent->frozen  && t->chan == chan) {
+                    t->state = STOPPED;
+                }
+                else if (t->state == SLEEPING && t->chan == chan) {
                     t->state = RUNNABLE;
                 }
                 release(&p->lock);
@@ -876,6 +880,12 @@ void signal_handler(void) {
                 exit(-1);
             } else if (p->signal_handlers[i] == (void *) SIGSTOP) { // SIGKILL Handling
                 p->frozen = 1;
+                // need to stop all other threads in this proc except mythread() that should wait to be released or killed
+                struct thread *curr_t;
+                for (curr_t = p->threads; curr_t < &p->threads[NTHREADS]; curr_t++){
+                    if(curr_t->tid != t->tid && (curr_t->state == RUNNING || curr_t->state == RUNNABLE))
+                        curr_t->state = STOPPED;
+                }
                 while ((p->pending_signals & (1 << SIGCONT)) == 0) { // while SIGCONT is not turned on
                     // TODO: should all thread of this proc be frozen or just the current one?
                     release(&p->lock);
@@ -884,11 +894,20 @@ void signal_handler(void) {
                     // check if SIGKILL is received before SIGCONT
                     if(p->pending_signals & (1 << SIGKILL)){
                         p->pending_signals ^= (1 << SIGKILL);
+                        for (curr_t = p->threads; curr_t < &p->threads[NTHREADS]; curr_t++){
+                            if(curr_t->tid != t->tid && curr_t->state == STOPPED)
+                                curr_t->state = RUNNABLE;
+                        }
                         release(&p->lock);
                         exit(-1);
                     }
                 }
                 p->frozen = 0;
+                // release all other threads of p form stopped
+                for (curr_t = p->threads; curr_t < &p->threads[NTHREADS]; curr_t++){
+                    if(curr_t->tid != t->tid && curr_t->state == STOPPED)
+                        curr_t->state = RUNNABLE;
+                }
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
                 p->pending_signals ^= (1 << 19); // Set the bit of the signal back to zero (bitwise xor)
             }

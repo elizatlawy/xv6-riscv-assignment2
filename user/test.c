@@ -153,14 +153,14 @@ void signal_handler_kernel_sig_test(){
         sleep(20);
         int kill_res = -9;
         sleep(10);
-        kill_res = kill(child_pid, 19); // SIGCONT
-        printf(" SIGCONT sent to child: %d with res: %d\n",child_pid,kill_res);
         sleep(20);
         kill_res = kill(child_pid, 17); // SIGSTOP
         printf(" SIGSTOP sent to child: %d with res: %d\n",child_pid,kill_res);
         sleep(10);
-        kill_res = kill(child_pid, 9); // SIGKILL
-        printf(" SIGKILL sent to child: %d with res: %d\n",child_pid,kill_res);
+        kill_res = kill(child_pid, 19); // SIGCONT
+        printf(" SIGCONT sent to child: %d with res: %d\n",child_pid,kill_res);
+//        kill_res = kill(child_pid, 9); // SIGKILL
+//        printf(" SIGKILL sent to child: %d with res: %d\n",child_pid,kill_res);
         int status;
         wait(&status);
         printf("Child PID: %d exit with status: %d\n",child_pid, status);
@@ -176,7 +176,7 @@ void signal_handler_kernel_sig_test(){
 //        printf("child old mask after ignoring SIGKILL %d\n", oldmask);
         sleep(15);
 
-        for(int i = 1; i <= 100; i++){
+        for(int i = 1; i <= 50; i++){
             printf("counting: %d \n",i);
             sleep(1);
         }
@@ -251,8 +251,8 @@ void signal_test(){
 
 int main(int argc, char *argv[]) {
     signal_test();
-//    signal_handler_kernel_sig_test();
-//    signal_handler_user_sig_test();
+    signal_handler_kernel_sig_test();
+    signal_handler_user_sig_test();
 //    printf("PID: %d\n", getpid());
 //    sigprocmastk_test();
 //    sigaction_test();
