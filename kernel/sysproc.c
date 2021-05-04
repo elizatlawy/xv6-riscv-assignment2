@@ -142,9 +142,9 @@ uint64 sys_sigret(void){
 uint64 sys_kthread_create(void){
     uint64 start_func;
     uint64 stack;
-    if (argaddr(1, &start_func) < 0)
+    if (argaddr(0, &start_func) < 0)
         return -1;
-    if (argaddr(2, &stack) < 0)
+    if (argaddr(1, &stack) < 0)
         return -1;
     return kthread_create(start_func, stack);
 }
@@ -165,7 +165,7 @@ uint64 sys_kthread_join(void){
     if (argint(0, &thread_id) < 0)
         return -1;
     uint64 status;
-    if (argaddr(0, &status) < 0)
+    if (argaddr(1, &status) < 0)
         return -1;
     return kthread_join(thread_id, status);
 }

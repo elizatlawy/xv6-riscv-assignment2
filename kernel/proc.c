@@ -212,9 +212,6 @@ kthread_join(int thread_id, uint64 status){
                 freethread(curr_t);
                 return 0;
             }
-            else{
-                panic("in kthread_join exit from while & curr+t is not ZOMBI\n");
-            }
         }
     }
     // not found: not existed or already exited
@@ -227,6 +224,7 @@ kthread_join(int thread_id, uint64 status){
 /// should lock p->locked before calling this function!!
 struct thread *allocthread(struct proc *p) {
     struct thread *t;
+    int t_index = 0;
     for (t = p->threads; t < &p->threads[NTHREAD]; t++) {
         if (t->state == UNUSED_T) {
             goto found;
@@ -234,6 +232,7 @@ struct thread *allocthread(struct proc *p) {
             freethread(t);
             goto found;
         }
+        t_index++;
     }
     // there is no unused thread in p
     release(&p->lock);
@@ -246,25 +245,31 @@ struct thread *allocthread(struct proc *p) {
     t->state = USED_T;
     // TODO: is the kalloc is ok?
     // Allocate kernel stack only if t is not the first thread in proc since he already have kstack
-    if(t->parent->threads[0].tid != t->tid){
+    if(t_index != 0){
         if((t->kstack = (uint64) kalloc()) == 0){
             freethread(t);
             release(&p->lock);
             return 0;
         }
+        t->trapframe = p->threads->trapframe + (sizeof (struct trapframe ))*t_index;
+        t->usertrap_backup = p->threads->usertrap_backup + (sizeof (struct trapframe ))*t_index;
     }
-    // Allocate a trapframe page.
-    if ((t->trapframe = (struct trapframe *) kalloc()) == 0) {
-        freethread(t);
-        release(&p->lock);
-        return 0;
+    // this is the first thread of the proc
+    else{
+        // Allocate a trapframe page.
+        if ((t->trapframe = (struct trapframe *) kalloc()) == 0) {
+            freethread(t);
+            release(&p->lock);
+            return 0;
+        }
+        // Allocate a usertrap_backup page.
+        if ((t->usertrap_backup = (struct trapframe *) kalloc()) == 0) {
+            freethread(t);
+            release(&p->lock);
+            return 0;
+        }
     }
-    // Allocate a usertrap_backup page.
-    if ((t->usertrap_backup = (struct trapframe *) kalloc()) == 0) {
-        freethread(t);
-        release(&p->lock);
-        return 0;
-    }
+
     // Set up new context to start executing at forkret,
     // which returns to user space.
     memset(&t->context, 0, sizeof(t->context));
@@ -319,12 +324,16 @@ freethread(struct thread *t) {
 //    // check if it is the first thread of the proc then do not free his stack
     if (t->parent->threads[0].tid != t->tid && t->kstack)
         kfree((void *) t->kstack);
-    if (t->trapframe)
-        kfree((void *) t->trapframe);
-    t->trapframe = 0;
-    if (t->usertrap_backup)
-        kfree((void *) t->usertrap_backup);
-    t->usertrap_backup = 0;
+
+    // free trapframe & usertrap_backup only if it is the first thread of the proc
+    if(t->parent->threads[0].tid == t->tid){
+        if (t->trapframe)
+            kfree((void *) t->trapframe);
+        t->trapframe = 0;
+        if (t->usertrap_backup)
+            kfree((void *) t->usertrap_backup);
+        t->usertrap_backup = 0;
+    }
     t->tid = 0;
     t->parent->threads_num--;
     t->parent = 0;
@@ -718,6 +727,9 @@ scheduler(void) {
             if (p->state == USED) {
                 for (t = p->threads; t < &p->threads[NTHREAD]; t++) {
                     if (t->state == RUNNABLE) {
+                        if(t->tid == 4){
+                            printf("tid 4 scehdulad to run\n");
+                        }
                         // Switch to chosen process.  It is the process's job
                         // to release its lock and then reacquire it
                         // before jumping back to us.

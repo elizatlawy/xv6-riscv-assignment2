@@ -156,7 +156,7 @@ kerneltrap() {
 
     if ((which_dev = devintr()) == 0) {
         printf("scause %d\n", scause);
-        printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
+        printf("sepc=%d stval=%d\n", r_sepc(), r_stval());
         panic("kerneltrap");
     }
 

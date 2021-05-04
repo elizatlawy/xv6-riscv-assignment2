@@ -250,29 +250,6 @@ void signal_test() {
     printf("Finished testing signals\n");
 }
 
-void thread_func() {
-    int tid = kthread_id();
-    printf("Thread ID: %d is now running\n", tid);
-   exit(tid);
-}
-
-void thread_test() {
-    int tid1;
-//    int tid2;
-//    int tid3;
-//    int status;
-    void *stack1 = malloc(MAX_STACK_SIZE);
-//    void *stack2 = malloc(MAX_STACK_SIZE);
-//    void *stack3 = malloc(MAX_STACK_SIZE);
-    tid1 = kthread_create(thread_func, stack1);
-    printf("thread TID: %d created\n");
-//    tid2 = kthread_create(test_thread, stack2);
-//    printf("thread 2 created\n");
-//    kthread_create(test_thread, stack3);
-    free(stack1);
-    printf("Finished testing threads, thread1 id: %d\n", tid1);
-//    printf("Finished testing threads, thread1 id: %d, thread2 id: %d, \n", tid1,tid2);
-}
 
 //void test_thread(){
 //    printf("Thread is now running\n");
@@ -290,6 +267,20 @@ void thread_test() {
 //    printf("Finished testing threads, main thread id: %d, %d\n", tid,status);
 //}
 
+void thread_func() {
+    int tid = kthread_id();
+    printf("Thread ID: %d is now running\n", tid);
+    exit(tid);
+}
+
+void thread_test() {
+    int tid1;
+    void *stack1 = malloc(MAX_STACK_SIZE);
+    tid1 = kthread_create(thread_func, stack1);
+    printf("thread TID: %d created\n",tid1 );
+    free(stack1);
+//    printf("Finished testing threads, thread1 id: %d\n", tid1);
+}
 int main(int argc, char *argv[]) {
     thread_test();
 //    printf("test\n");
