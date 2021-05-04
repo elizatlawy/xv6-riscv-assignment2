@@ -16,5 +16,7 @@
 #define SIGKILL      9
 #define SIGSTOP      17
 #define SIGCONT      19
+#define MAX_STACK_SIZE 4000
+
 
 

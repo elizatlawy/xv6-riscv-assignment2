@@ -17,7 +17,7 @@ struct context {
   uint64 s11;
 };
 
-#define NTHREADS 8
+#define NTHREAD 8
 
 // Per-CPU state.
 struct cpu {
@@ -148,7 +148,7 @@ struct proc {
 //  struct trapframe* usertrap_backup;
   uint frozen; // 0 not frozen, 1 frozen
 
-  struct thread threads[NTHREADS];   // thread array
+  struct thread threads[NTHREAD];   // thread array
   int threads_num;               // number of current threads in array
 };
 
