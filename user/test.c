@@ -3,6 +3,12 @@
 #include "kernel/fcntl.h"
 #include "kernel/syscall.h"
 
+#define SIG_DFL      0       // default signal handling
+#define SIG_IGN      1       // ignore signal
+#define SIGKILL      9
+#define SIGSTOP      17
+#define SIGCONT      19
+
 int flag = 0;
 
 void
@@ -146,13 +152,6 @@ void signal_handler_kernel_sig_test(){
     else if (child_pid > 0) { // father
         sleep(20);
         int kill_res = -9;
-//        kill_res = kill(child_pid, 2);
-//        printf("first kill_res: %d\n",kill_res);
-//        kill_res = kill(child_pid, 2); // SIG_IGN
-//        printf("sec kill_res: %d\n",kill_res);
-//        kill_res = kill(child_pid, 3); // SIG_IGN
-//        printf("third kill_res: %d\n",kill_res);
-
         sleep(10);
         kill_res = kill(child_pid, 19); // SIGCONT
         printf(" SIGCONT sent to child: %d with res: %d\n",child_pid,kill_res);
@@ -166,14 +165,21 @@ void signal_handler_kernel_sig_test(){
         wait(&status);
         printf("Child PID: %d exit with status: %d\n",child_pid, status);
     } else { // child
+//        uint newmask = (1 << 19);
+//        int oldmask = sigprocmask(newmask);
+//        printf("child old mask after ignoring SIGCONT %d\n", oldmask);
+//        newmask = (1 << 17);
+//        oldmask = sigprocmask(newmask);
+//        printf("child old mask after ignoring SIGSTOP %d\n", oldmask);
+//        newmask = (1 << 9);
+//        oldmask = sigprocmask(newmask);
+//        printf("child old mask after ignoring SIGKILL %d\n", oldmask);
         sleep(15);
-//        sleep(20);
-//        sleep(20);
+
         for(int i = 1; i <= 100; i++){
             printf("counting: %d \n",i);
             sleep(1);
         }
-//        for(;;)
     }
 }
 // TODO: understand if it is a real bug!!
@@ -188,6 +194,7 @@ void signal_handler_user_sig_test(){
     else if (child_pid > 0) { // father
         sleep(10);
         int kill_res = -9;
+
         kill_res = kill(child_pid, 2);
         kill(child_pid, 2);
 //        printf("first kill_res: %d\n",kill_res);
@@ -209,23 +216,43 @@ void signal_handler_user_sig_test(){
         sigaction(3,&act2,&oldact);
         act.sa_handler = handler4;
         sigaction(4,&act,&oldact);
+//        uint newmask = ((1 << 2) | (1 <<4) );
+//        int oldmask = sigprocmask(newmask);
+//        printf("child old mask %d\n", oldmask);
         sleep(20);
-//        printf("Child sleep 1\n");
-//        sleep(20);
-//        printf("Child sleep 2\n");
-//        sleep(20);
-//        printf("Child sleep 3\n");
-//        for(int i = 1; i <= 100; i++){
-//            printf("counting: %d \n",i);
-//            sleep(1);
-//        }
-//        for(;;);
     }
 }
 
+int wait_sig = 0;
+
+void test_handler(int signum){
+    wait_sig = 1;
+    printf("Received sigtest\n");
+}
+
+void signal_test(){
+    int pid;
+    int testsig;
+    testsig=15;
+    struct sigaction act = {test_handler, (uint)(1 << 29)};
+    struct sigaction old;
+
+    sigprocmask(0);
+    sigaction(testsig, &act, &old);
+    if((pid = fork()) == 0){
+        while(!wait_sig)
+            sleep(1);
+        exit(0);
+    }
+    kill(pid, testsig);
+    wait(&pid);
+    printf("Finished testing signals\n");
+}
+
 int main(int argc, char *argv[]) {
-    signal_handler_kernel_sig_test();
-    signal_handler_user_sig_test();
+    signal_test();
+//    signal_handler_kernel_sig_test();
+//    signal_handler_user_sig_test();
 //    printf("PID: %d\n", getpid());
 //    sigprocmastk_test();
 //    sigaction_test();
