@@ -122,22 +122,40 @@ allocpid() {
     return pid;
 }
 
-// you should lock p->locked before calling this function
+/// should lock p->locked before calling this function!!
 int allocthread(struct proc *p) {
-    struct thread *t = &p->threads[p->threads_num];
+    struct thread *t;
+    int found = 0;
+    int t_id = 0;
+    for (t = p->threads; found != 1 && t < &p->threads[NTHREADS]; t++) {
+        t_id++;
+        if (t->state == UNUSED_T) {
+            goto found;
+        } else if (t->state == ZOMBIE_T) {
+            freethread(t);
+            goto found;
+        }
+    }
+    // there is no unused thread in p
+    release(&p->lock);
+    return 0;
+    found:
+    // else found unused thread
     p->threads_num++;
     t->parent = p;
-    t->tid = p->threads_num;
+    t->tid = t_id; // thread id is it's number in the array
     t->state = USED_T;
     // TODO: is the kalloc is ok?
     // Allocate a trapframe page.
     if ((t->trapframe = (struct trapframe *) kalloc()) == 0) {
         freethread(t);
+        release(&p->lock);
         return 0;
     }
     // Allocate a usertrap_backup page.
     if ((t->usertrap_backup = (struct trapframe *) kalloc()) == 0) {
         freethread(t);
+        release(&p->lock);
         return 0;
     }
     // Set up new context to start executing at forkret,
@@ -156,14 +174,11 @@ static struct proc *
 allocproc(void) {
     struct proc *p;
     for (p = proc; p < &proc[NPROC]; p++) {
-//        printf("in allocproc start acquire to PID: %d \n", p->pid);
         acquire(&p->lock);
         if (p->state == UNUSED) {
             goto found;
         } else {
-//            printf("in allocproc start release to PID: %d \n", p->pid);
             release(&p->lock);
-
         }
     }
     return 0;
@@ -176,10 +191,10 @@ allocproc(void) {
     p->signal_handlers[19] = (void *) SIGCONT;
     if (!allocthread(p)) {
         freeproc(p);
-//        printf("in allocproc start release to PID: %d \n", p->pid);
         release(&p->lock);
         return 0;
     }
+
 //    // Allocate a trapframe page.
 //    if ((p->trapframe = (struct trapframe *) kalloc()) == 0) {
 //        freeproc(p);
@@ -197,7 +212,6 @@ allocproc(void) {
     p->pagetable = proc_pagetable(p);
     if (p->pagetable == 0) {
         freeproc(p);
-//        printf("in allocproc start release to PID: %d \n", p->pid);
         release(&p->lock);
         return 0;
     }
@@ -210,7 +224,7 @@ allocproc(void) {
     return p;
 }
 
-// t->lock must be held when calling freethread.
+// P->lock must be held when calling freethread.
 static void
 freethread(struct thread *t) {
     if (t->trapframe)
@@ -220,10 +234,12 @@ freethread(struct thread *t) {
         kfree((void *) t->usertrap_backup);
     t->usertrap_backup = 0;
     t->tid = 0;
+    t->parent->threads_num--;
     t->parent = 0;
     t->chan = 0;
     t->killed = 0;
     t->xstate = 0;
+    t->state = UNUSED_T;
 }
 
 // free a proc structure and the data hanging from it,
