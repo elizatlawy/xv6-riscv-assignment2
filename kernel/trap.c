@@ -46,10 +46,6 @@ usertrap(void) {
     struct thread *t = mythread();
     // save user program counter.
     t->trapframe->epc = r_sepc();
-    if(t->tid == 4){
-//        t->fn = t->trapframe->epc;
-        t->fn = walkaddr(p->pagetable,(TRAPFRAME + (sizeof (struct trapframe)*(t - p->threads))));
-    }
 
     if (r_scause() == 8) {
         // system call
@@ -145,9 +141,8 @@ usertrapret(void) {
     // and switches to user mode with sret.
 
     uint64 fn = TRAMPOLINE + (userret - trampoline);
-    if(t->tid == 4){
-        t->fn = fn;
-    }
+//    ((void (*)(uint64,uint64))fn)(TRAPFRAME + (t->trapframe - p->threads->trapframe), satp);
+//    ((void (*)(uint64,uint64))fn)(TRAPFRAME + sizeof(struct trapframe)*t->t_index, satp);
     ((void (*)(uint64, uint64)) fn)(TRAPFRAME + (sizeof (struct trapframe)*(t - p->threads)), satp);
 }
 

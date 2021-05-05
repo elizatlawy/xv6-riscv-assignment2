@@ -279,11 +279,11 @@ void thread_test(){
     int status;
     void* stack = malloc(MAX_STACK_SIZE);
     tid = kthread_create(test_thread, stack);
-//    sleep(20);
+//    sleep(50);
     kthread_join(tid,&status);
     tid = kthread_id();
     free(stack);
-    printf("Finished testing threads, main thread id: %d, %d\n", tid);
+    printf("Finished testing threads, main thread id: %d, %d\n", tid, 0);
 }
 
 int main(int argc, char *argv[]) {

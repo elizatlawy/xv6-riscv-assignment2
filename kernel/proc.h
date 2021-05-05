@@ -111,7 +111,7 @@ struct thread {
     struct trapframe *trapframe;        // Trap frame for current syscall
     struct context context;     // swtch() here to run thread
     struct trapframe* usertrap_backup;
-    int fn;
+    int t_index;
 };
 
 

@@ -58,7 +58,6 @@ struct spinlock wait_lock;
 void
 proc_mapstacks(pagetable_t kpgtbl) {
     struct proc *p;
-
     for (p = proc; p < &proc[NPROC]; p++) {
         char *pa = kalloc();
         if (pa == 0)
@@ -177,25 +176,31 @@ int
 kthread_join(int thread_id, uint64 status) {
     struct proc *p = myproc();
     struct thread *t = mythread();
+    printf("entered kthread_join() -> TID: %d\n",t->tid);
     // thread cannot wait for himself
     if (t->tid == thread_id)
         return -1;
     struct thread *curr_t;
-    for (curr_t = p->threads; curr_t < &p->threads[NTHREAD]; t++) {
-        acquire(&p->lock);
+    for (curr_t = p->threads; curr_t < &p->threads[NTHREAD]; curr_t++) {
+//        acquire(&p->lock);
+        acquire(&wait_lock);
         // found
         if (curr_t->tid == thread_id) {
             while (curr_t->state != ZOMBIE_T) {
                 // sleep until curr_t state is changed + release p.lock
-                sleep(curr_t, &p->lock);
+                printf("in kthread_join TID: %d is going to sleep\n",t->tid);
+                sleep(curr_t, &wait_lock);
+                printf("in kthread_join TID: %d is EXIT form to sleep\n",t->tid);
             }
-            release(&p->lock);
             if (curr_t->state == ZOMBIE_T) {
+                acquire(&p->lock);
                 freethread(curr_t);
+                release(&p->lock);
+                release(&wait_lock);
                 return 0;
             }
         }
-        release(&p->lock);
+        release(&wait_lock);
     }
     // not found: not existed or already exited
     return -1;
@@ -221,15 +226,11 @@ kthread_create(uint64 start_func, uint64 stack) {
     memset(&t->context, 0, sizeof(struct context));
     t->context.ra = (uint64) forkret;
     t->context.sp = t->kstack + PGSIZE;
-    printf("in kthread_create trapframe addr is: %d\n",t->trapframe);
-//    printf("trapframe size: %p of thread in kthread_create\n",t->trapframe);
+
+//    memmove(t->trapframe,mythread()->trapframe,sizeof (struct trapframe));
+
     t->trapframe->sp = (stack + MAX_STACK_SIZE - 16); // user stack pointer
-    if(t->tid == 4){
-        printf("epc: %p\n", t->trapframe->epc);
-    }
     t->trapframe->epc = start_func;  // user program counter
-//    printf("start_func addr: %d of thread in kthread_create\n",t->trapframe->epc);
-//    printf("stack addr: %d of thread in kthread_create\n",t->trapframe->sp);
     t->state = RUNNABLE;
 
     release(&p->lock);
@@ -240,7 +241,6 @@ kthread_create(uint64 start_func, uint64 stack) {
 /// should lock p->locked before calling this function!!
 struct thread *allocthread(struct proc *p) {
     struct thread *t;
-//    int t_index = 0;
     for (t = p->threads; t < &p->threads[NTHREAD]; t++) {
         if (t->state == UNUSED_T) {
             goto found;
@@ -248,7 +248,6 @@ struct thread *allocthread(struct proc *p) {
             freethread(t);
             goto found;
         }
-//        t_index++;
     }
     // there is no unused thread in p
     release(&p->lock);
@@ -307,13 +306,13 @@ allocproc(void) {
         return 0;
     }
 //    printf("trapframe_start: %p\n",trapframe_start);
-    // set the right index for all threads of this proc.
+    // set the right index of trapframe for all threads of this proc.
     int t_index = 0;
     struct thread *curr_t;
     for(curr_t = p->threads; curr_t < &p->threads[NTHREAD]; curr_t++){
+        curr_t->t_index = t_index;
         curr_t->trapframe = trapframe_start + sizeof(struct trapframe)*t_index;
         curr_t->usertrap_backup = trapframe_backup_start + sizeof(struct trapframe)*t_index;
-//        printf("trapframe size: %p of thread num: %d\n",t->trapframe,t_index);
         t_index++;
     }
     // An empty user page table.
@@ -336,7 +335,6 @@ freethread(struct thread *t) {
 //    // check if it is the first thread of the proc then do not free his stack
     if (t->parent->threads[0].tid != t->tid && t->kstack)
         kfree((void *) t->kstack);
-
     // free trapframe & usertrap_backup only if it is the first thread of the proc
     if (t->parent->threads[0].tid == t->tid) {
         if (t->trapframe)
@@ -377,10 +375,6 @@ freeproc(struct proc *p) {
         p->signal_handlers[i] = (void *) SIG_DFL;
         p->signal_mask_arr[i] = 0;
     }
-//    p->signal_handlers[1] = (void *) SIG_IGN;
-//    p->signal_handlers[9] = (void *) SIGKILL;
-//    p->signal_handlers[17] = (void *) SIGSTOP;
-//    p->signal_handlers[19] = (void *) SIGCONT;
     p->state = UNUSED;
 }
 
@@ -444,7 +438,7 @@ userinit(void) {
     if (p == 0) {
         panic("in userinit() allocproc() failed");
     }
-    struct thread *t = &p->threads[0];
+    struct thread *t = p->threads;
     initproc = p;
     // allocate one user page and copy init's instructions
     // and data into it.
@@ -620,6 +614,7 @@ exit_thread(int status) {
         release(&p->lock);
         exit_process(status);
     }
+    printf("inside exit_thread TID: %d turn into ZOMBIE and going to sched\n",t->tid);
     sched();
     panic("zombie exit");
 }
