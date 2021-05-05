@@ -73,17 +73,10 @@ usertrap(void) {
 //        printf("in usertrap Thread EXIT TID: %d form PID: %d Killed\n",t->tid, p->pid);
         exit_thread(-1);
     }
-//    if (p->killed){
-//        printf("in usertrap Process EXIT PID: %d Killed\n", p->pid);
-//        exit_process(-1);
-//    }
 
     // give up the CPU if this is a timer interrupt.
     if (which_dev == 2)
         yield();
-//    if(p->lock.locked == 1){
-//        printf("locked\n");
-//    }
     usertrapret();
 }
 
@@ -95,9 +88,6 @@ usertrapret(void) {
     // handle pending signals before switching to userspace
     struct proc *p = myproc();
     struct thread *t = mythread();
-//    if(t->tid == 4){
-//        printf("inside usertrap\n");
-//    }
     // we're about to switch the destination of traps from
     // kerneltrap() to usertrap(), so turn off interrupts until
     // we're back in user space, where usertrap() is correct.
@@ -141,9 +131,13 @@ usertrapret(void) {
     // and switches to user mode with sret.
 
     uint64 fn = TRAMPOLINE + (userret - trampoline);
+
 //    ((void (*)(uint64,uint64))fn)(TRAPFRAME + (t->trapframe - p->threads->trapframe), satp);
 //    ((void (*)(uint64,uint64))fn)(TRAPFRAME + sizeof(struct trapframe)*t->t_index, satp);
     ((void (*)(uint64, uint64)) fn)(TRAPFRAME + (sizeof(struct trapframe) * (t - p->threads)), satp);
+    // orig:
+//    ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
+
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,

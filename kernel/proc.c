@@ -195,6 +195,7 @@ kthread_join(int thread_id, uint64 status) {
             if (curr_t->state == ZOMBIE_T) {
                 printf("inside kthread_join TID: %d is ZOMBIE with xstate: %d\n", curr_t->tid,curr_t->xstate);
                 acquire(&p->lock);
+                // copyout the status of the exited thread
                 if(status != 0 && copyout(p->pagetable, status, (char *)&curr_t->xstate,
                                         sizeof(curr_t->xstate)) < 0) {
                     release(&p->lock);
@@ -235,6 +236,7 @@ kthread_create(uint64 start_func, uint64 stack) {
     t->context.sp = t->kstack + PGSIZE;
 
 //    memmove(t->trapframe,mythread()->trapframe,sizeof (struct trapframe));
+//    t->trapframe = (struct trapframe*)(sizeof(struct trapframe) * (t - p->threads));
 
     t->trapframe->sp = (stack + MAX_STACK_SIZE - 16); // user stack pointer
     t->trapframe->epc = start_func;  // user program counter
