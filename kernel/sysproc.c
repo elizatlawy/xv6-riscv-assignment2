@@ -96,7 +96,7 @@ uint64 sys_sigprocmask(void) {
     int sigkill_bit = new_mask & (1 << SIGKILL);
     int sigstop_bit = new_mask & (1 << SIGSTOP);
     // Ignoring SIGKILL or SIGSTOP is not allowed return error
-    if(sigkill_bit || sigstop_bit)
+    if (sigkill_bit || sigstop_bit)
         return -1;
     acquire(&myproc()->lock);
     int old_mask = myproc()->signal_mask;
@@ -112,7 +112,7 @@ uint64 sys_sigaction(void) {
     if (argint(0, &signum) < 0 || signum < 0 || signum > 31)
         return -1;
     // we cannot modify SIGKILL & SIGSTOP
-    if(signum == SIGKILL || signum == SIGSTOP)
+    if (signum == SIGKILL || signum == SIGSTOP)
         return -1;
     uint64 act_ptr;
     if (argaddr(1, &act_ptr) < 0 || act_ptr == 0)
@@ -121,15 +121,15 @@ uint64 sys_sigaction(void) {
     if (argaddr(2, &oldact_ptr) < 0)
         return -1;
 
-    return sigaction(signum, (const struct sigaction*) act_ptr, (struct sigaction*) oldact_ptr);
+    return sigaction(signum, (const struct sigaction *) act_ptr, (struct sigaction *) oldact_ptr);
 }
 
 /// Task 2.1.5
-uint64 sys_sigret(void){
+uint64 sys_sigret(void) {
     struct proc *p = myproc();
     struct thread *t = mythread();
     // restore trapframe backup.
-    memmove(t->trapframe,t->usertrap_backup,sizeof(struct trapframe));
+    memmove(t->trapframe, t->usertrap_backup, sizeof(struct trapframe));
     //restore mask backup
     acquire(&p->lock);
     p->signal_mask = p->signal_mask_backup;
@@ -139,7 +139,7 @@ uint64 sys_sigret(void){
     return 0;
 }
 
-uint64 sys_kthread_create(void){
+uint64 sys_kthread_create(void) {
     uint64 start_func;
     uint64 stack;
     if (argaddr(0, &start_func) < 0)
@@ -149,18 +149,19 @@ uint64 sys_kthread_create(void){
     return kthread_create(start_func, stack);
 }
 
-uint64 sys_kthread_id(void){
+uint64 sys_kthread_id(void) {
     return kthread_id();
 }
 
-uint64 sys_kthread_exit(void){
+uint64 sys_kthread_exit(void) {
     int status;
     if (argint(0, &status) < 0)
         return -1;
-    return kthread_id(status);
+    kthread_exit(status);
+    return 0;
 }
 
-uint64 sys_kthread_join(void){
+uint64 sys_kthread_join(void) {
     int thread_id;
     if (argint(0, &thread_id) < 0)
         return -1;

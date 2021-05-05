@@ -276,6 +276,7 @@ void test_thread(){
         printf("%d\n", i);
     }
     kthread_exit(0);
+    printf("Thread is now running\n");
 }
 void thread_test(){
     int tid;
