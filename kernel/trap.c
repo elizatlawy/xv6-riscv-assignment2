@@ -46,10 +46,14 @@ usertrap(void) {
     struct thread *t = mythread();
     // save user program counter.
     t->trapframe->epc = r_sepc();
+    if(t->tid == 4){
+//        t->fn = t->trapframe->epc;
+        t->fn = walkaddr(p->pagetable,(TRAPFRAME + (sizeof (struct trapframe)*(t - p->threads))));
+    }
 
     if (r_scause() == 8) {
         // system call
-        if(t->should_exit)
+        if(t->killed || t->should_exit)
             exit_thread(0);
         if (p->killed)
             exit_process(-1);
@@ -65,11 +69,11 @@ usertrap(void) {
     } else if ((which_dev = devintr()) != 0) {
         // ok
     } else {
-        printf("usertrap(): unexpected scause %d pid=%d\n", r_scause(), p->pid);
+        printf("usertrap(): unexpected scause %d pid=%d, tid=%d\n", r_scause(), p->pid,t->tid);
         printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
         t->killed = 1;
     }
-    if (t->killed){
+    if (t->killed || t->should_exit){
 //        printf("in usertrap Thread EXIT TID: %d form PID: %d Killed\n",t->tid, p->pid);
         exit_thread(-1);
     }
@@ -95,6 +99,9 @@ usertrapret(void) {
     // handle pending signals before switching to userspace
     struct proc *p = myproc();
     struct thread *t = mythread();
+//    if(t->tid == 4){
+//        printf("inside usertrap\n");
+//    }
     // we're about to switch the destination of traps from
     // kerneltrap() to usertrap(), so turn off interrupts until
     // we're back in user space, where usertrap() is correct.
@@ -136,7 +143,11 @@ usertrapret(void) {
     // jump to trampoline.S at the top of memory, which
     // switches to the user page table, restores user registers,
     // and switches to user mode with sret.
+
     uint64 fn = TRAMPOLINE + (userret - trampoline);
+    if(t->tid == 4){
+        t->fn = fn;
+    }
     ((void (*)(uint64, uint64)) fn)(TRAPFRAME + (sizeof (struct trapframe)*(t - p->threads)), satp);
 }
 

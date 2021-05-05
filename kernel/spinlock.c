@@ -23,7 +23,7 @@ acquire(struct spinlock *lk)
 {
   push_off(); // disable interrupts to avoid deadlock.
   if(holding(lk)){
-//      printf("Panic acquire, lock name: %s, PID: %d TID: %d \n", lk->name, myproc()->pid, mythread()->tid);
+      printf("Panic acquire, lock name: %s, PID: %d TID: %d \n", lk->name, myproc()->pid, mythread()->tid);
       panic("acquire");
   }
 

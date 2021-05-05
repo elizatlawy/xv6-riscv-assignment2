@@ -195,6 +195,7 @@ kthread_join(int thread_id, uint64 status) {
                 return 0;
             }
         }
+        release(&p->lock);
     }
     // not found: not existed or already exited
     return -1;
@@ -215,18 +216,20 @@ kthread_create(uint64 start_func, uint64 stack) {
         release(&p->lock);
         return -1;
     }
-//    printf("trapframe size: %p of thread in kthread_create\n",t->trapframe);
-    t->trapframe->sp = (stack + MAX_STACK_SIZE - 16); // user stack pointer
-    t->trapframe->epc = start_func;  // user program counter
-//    printf("start_func addr: %d of thread in kthread_create\n",t->trapframe->epc);
-//    printf("stack addr: %d of thread in kthread_create\n",t->trapframe->sp);
-
     // Set up new context to start executing at forkret,
     // which returns to user space.
     memset(&t->context, 0, sizeof(struct context));
     t->context.ra = (uint64) forkret;
     t->context.sp = t->kstack + PGSIZE;
-
+    printf("in kthread_create trapframe addr is: %d\n",t->trapframe);
+//    printf("trapframe size: %p of thread in kthread_create\n",t->trapframe);
+    t->trapframe->sp = (stack + MAX_STACK_SIZE - 16); // user stack pointer
+    if(t->tid == 4){
+        printf("epc: %p\n", t->trapframe->epc);
+    }
+    t->trapframe->epc = start_func;  // user program counter
+//    printf("start_func addr: %d of thread in kthread_create\n",t->trapframe->epc);
+//    printf("stack addr: %d of thread in kthread_create\n",t->trapframe->sp);
     t->state = RUNNABLE;
 
     release(&p->lock);
@@ -306,9 +309,10 @@ allocproc(void) {
 //    printf("trapframe_start: %p\n",trapframe_start);
     // set the right index for all threads of this proc.
     int t_index = 0;
-    for(t = p->threads; t < &p->threads[NTHREAD]; t++){
-        t->trapframe = trapframe_start + sizeof(struct trapframe)*t_index;
-        t->usertrap_backup = trapframe_backup_start + sizeof(struct trapframe)*t_index;
+    struct thread *curr_t;
+    for(curr_t = p->threads; curr_t < &p->threads[NTHREAD]; curr_t++){
+        curr_t->trapframe = trapframe_start + sizeof(struct trapframe)*t_index;
+        curr_t->usertrap_backup = trapframe_backup_start + sizeof(struct trapframe)*t_index;
 //        printf("trapframe size: %p of thread num: %d\n",t->trapframe,t_index);
         t_index++;
     }
@@ -319,7 +323,6 @@ allocproc(void) {
         release(&p->lock);
         return 0;
     }
-    t = p->threads;
     memset(&t->context, 0, sizeof(struct context));
     t->context.ra = (uint64) forkret;
     t->context.sp = t->kstack + PGSIZE;
@@ -588,7 +591,6 @@ exit(int status) {
             yield();
         } else {
             // mythread() is the last active in this proc
-//            t->should_exit = 1;
             release(&p->lock);
             exit_process(status);
         }
@@ -605,14 +607,14 @@ exit_thread(int status) {
     wakeup(t);
     release(&wait_lock);
     acquire(&p->lock);
-    t->xstate = status;
-    t->state = ZOMBIE_T;
     int active_thread = 0;
     for (curr_t = p->threads; curr_t < &p->threads[NTHREAD]; curr_t++) {
         if (curr_t->tid != t->tid && curr_t->state != ZOMBIE_T && curr_t->state != UNUSED_T) {
             active_thread = 1;
         }
     }
+    t->xstate = status;
+    t->state = ZOMBIE_T;
     if (!active_thread) {
         // mythread() is the last active in this proc
         release(&p->lock);
