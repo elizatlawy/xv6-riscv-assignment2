@@ -176,7 +176,7 @@ int
 kthread_join(int thread_id, uint64 status) {
     struct proc *p = myproc();
     struct thread *t = mythread();
-    printf("entered kthread_join() -> TID: %d\n",t->tid);
+//    printf("entered kthread_join() -> TID: %d\n",t->tid);
     // thread cannot wait for himself
     if (t->tid == thread_id)
         return -1;
@@ -188,12 +188,19 @@ kthread_join(int thread_id, uint64 status) {
         if (curr_t->tid == thread_id) {
             while (curr_t->state != ZOMBIE_T) {
                 // sleep until curr_t state is changed + release p.lock
-                printf("in kthread_join TID: %d is going to sleep\n",t->tid);
+//                printf("in kthread_join TID: %d is going to sleep\n",t->tid);
                 sleep(curr_t, &wait_lock);
-                printf("in kthread_join TID: %d is EXIT form to sleep\n",t->tid);
+//                printf("in kthread_join TID: %d is EXIT form to sleep\n",t->tid);
             }
             if (curr_t->state == ZOMBIE_T) {
+                printf("inside kthread_join TID: %d is ZOMBIE with xstate: %d\n", curr_t->tid,curr_t->xstate);
                 acquire(&p->lock);
+                if(status != 0 && copyout(p->pagetable, status, (char *)&curr_t->xstate,
+                                        sizeof(curr_t->xstate)) < 0) {
+                    release(&p->lock);
+                    release(&wait_lock);
+                    return -1;
+                }
                 freethread(curr_t);
                 release(&p->lock);
                 release(&wait_lock);
@@ -614,7 +621,7 @@ exit_thread(int status) {
         release(&p->lock);
         exit_process(status);
     }
-    printf("inside exit_thread TID: %d turn into ZOMBIE and going to sched\n",t->tid);
+//    printf("inside exit_thread TID: %d turn into ZOMBIE and going to sched\n",t->tid);
     sched();
     panic("zombie exit");
 }
@@ -733,10 +740,10 @@ scheduler(void) {
             if (p->state == USED) {
                 for (t = p->threads; t < &p->threads[NTHREAD]; t++) {
                     if (t->state == RUNNABLE) {
-                        if (t->tid == 4) {
-                            // TODO: why we goes here it should_exit = 1 ?
-                            printf("tid 4 scehdulad to run\n");
-                        }
+//                        if (t->tid == 4) {
+//                            // TODO: why we goes here it should_exit = 1 ?
+//                            printf("tid 4 scehdulad to run\n");
+//                        }
                         // Switch to chosen process.  It is the process's job
                         // to release its lock and then reacquire it
                         // before jumping back to us.

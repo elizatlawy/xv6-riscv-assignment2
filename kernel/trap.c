@@ -49,7 +49,7 @@ usertrap(void) {
 
     if (r_scause() == 8) {
         // system call
-        if(t->killed || t->should_exit)
+        if (t->killed || t->should_exit)
             exit_thread(0);
         if (p->killed)
             exit_process(-1);
@@ -65,11 +65,11 @@ usertrap(void) {
     } else if ((which_dev = devintr()) != 0) {
         // ok
     } else {
-        printf("usertrap(): unexpected scause %d pid=%d, tid=%d\n", r_scause(), p->pid,t->tid);
+        printf("usertrap(): unexpected scause %d pid=%d, tid=%d\n", r_scause(), p->pid, t->tid);
         printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
         t->killed = 1;
     }
-    if (t->killed || t->should_exit){
+    if (t->killed || t->should_exit) {
 //        printf("in usertrap Thread EXIT TID: %d form PID: %d Killed\n",t->tid, p->pid);
         exit_thread(-1);
     }
@@ -143,7 +143,7 @@ usertrapret(void) {
     uint64 fn = TRAMPOLINE + (userret - trampoline);
 //    ((void (*)(uint64,uint64))fn)(TRAPFRAME + (t->trapframe - p->threads->trapframe), satp);
 //    ((void (*)(uint64,uint64))fn)(TRAPFRAME + sizeof(struct trapframe)*t->t_index, satp);
-    ((void (*)(uint64, uint64)) fn)(TRAPFRAME + (sizeof (struct trapframe)*(t - p->threads)), satp);
+    ((void (*)(uint64, uint64)) fn)(TRAPFRAME + (sizeof(struct trapframe) * (t - p->threads)), satp);
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,

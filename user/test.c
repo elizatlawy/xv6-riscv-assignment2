@@ -272,6 +272,9 @@ void signal_test() {
 
 void test_thread(){
     printf("Thread is now running\n");
+    for(int i = 0; i <= 20; i++){
+        printf("%d\n", i);
+    }
     kthread_exit(0);
 }
 void thread_test(){
@@ -279,11 +282,10 @@ void thread_test(){
     int status;
     void* stack = malloc(MAX_STACK_SIZE);
     tid = kthread_create(test_thread, stack);
-//    sleep(50);
     kthread_join(tid,&status);
     tid = kthread_id();
     free(stack);
-    printf("Finished testing threads, main thread id: %d, %d\n", tid, 0);
+    printf("Finished testing threads, main thread id: %d, %d\n", tid, status);
 }
 
 int main(int argc, char *argv[]) {
