@@ -131,9 +131,6 @@ usertrapret(void) {
     // and switches to user mode with sret.
 
     uint64 fn = TRAMPOLINE + (userret - trampoline);
-
-//    ((void (*)(uint64,uint64))fn)(TRAPFRAME + (t->trapframe - p->threads->trapframe), satp);
-//    ((void (*)(uint64,uint64))fn)(TRAPFRAME + sizeof(struct trapframe)*t->t_index, satp);
     ((void (*)(uint64, uint64)) fn)(TRAPFRAME + (sizeof(struct trapframe) * (t - p->threads)), satp);
     // orig:
 //    ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);

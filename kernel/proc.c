@@ -235,15 +235,11 @@ kthread_create(uint64 start_func, uint64 stack) {
     t->context.ra = (uint64) forkret;
     t->context.sp = t->kstack + PGSIZE;
 
-//    memmove(t->trapframe,mythread()->trapframe,sizeof (struct trapframe));
-//    t->trapframe = (struct trapframe*)(sizeof(struct trapframe) * (t - p->threads));
-
     t->trapframe->sp = (stack + MAX_STACK_SIZE - 16); // user stack pointer
     t->trapframe->epc = start_func;  // user program counter
     t->state = RUNNABLE;
 
     release(&p->lock);
-//    printf("about to exit kthread_create \n");
     return t->tid;
 }
 
