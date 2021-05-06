@@ -229,16 +229,13 @@ kthread_create(uint64 start_func, uint64 stack) {
         release(&p->lock);
         return -1;
     }
-    // Set up new context to start executing at forkret,
-    // which returns to user space.
-    memset(&t->context, 0, sizeof(struct context));
-    t->context.ra = (uint64) forkret;
-    t->context.sp = t->kstack + PGSIZE;
-
     t->trapframe->sp = (stack + MAX_STACK_SIZE - 16); // user stack pointer
     t->trapframe->epc = start_func;  // user program counter
     t->state = RUNNABLE;
 
+    memset(&t->context, 0, sizeof(struct context));
+    t->context.ra = (uint64) forkret;
+    t->context.sp = t->kstack + PGSIZE;
     release(&p->lock);
     return t->tid;
 }
@@ -255,7 +252,6 @@ struct thread *allocthread(struct proc *p) {
         }
     }
     // there is no unused thread in p
-    release(&p->lock);
     return 0;
 
     found:
@@ -264,6 +260,7 @@ struct thread *allocthread(struct proc *p) {
     t->parent = p;
     t->tid = alloctid(); // thread id is it's number in the array
     t->state = USED_T;
+
     return t;
 }
 
@@ -282,7 +279,9 @@ allocproc(void) {
             release(&p->lock);
         }
     }
+    // if not found return NULL
     return 0;
+
     found:
     p->pid = allocpid();
     p->state = USED;

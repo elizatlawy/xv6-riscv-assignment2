@@ -251,32 +251,14 @@ void signal_test() {
 }
 
 
-//
-//void thread_func() {
-////    kthread_id();
-////    printf("Thread: %d is now running\n", tid);
-////    kthread_exit(tid);
-////    exit(tid);
-//}
-//
-//void thread_test() {
-//    printf("thread_func() addr is %d\n", thread_func);
-//    int tid1;
-//    void *stack1 = malloc(MAX_STACK_SIZE);
-//    printf("stack1 addr is %d\n", stack1);
-//    tid1 = kthread_create(thread_func, stack1);
-//    printf("thread TID: %d created\n", tid1);
-//    free(stack1);
-//    printf("Finished testing threads, thread1 id: %d\n", tid1);
-//}
-
 void test_thread(){
     printf("Thread is now running\n");
     for(int i = 0; i <= 20; i++){
         printf("%d\n", i);
     }
-    kthread_exit(0);
-    printf("Thread is now running\n");
+//    for(;;);
+    int tid = kthread_id();
+    kthread_exit(tid);
 }
 void thread_test(){
     int tid;
