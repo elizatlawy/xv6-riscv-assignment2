@@ -135,7 +135,40 @@ uint64 sys_sigret(void){
     p->signal_mask = p->signal_mask_backup;
     p->in_usr_sig_handler = 0;
     release(&p->lock);
-//    signal_handler();
     return 0;
 }
+
+/// Task 4.1 - Binary Semaphores
+uint64 sys_bsem_alloc(void){
+    int semaphore_id = bsem_alloc();
+    return semaphore_id;
+}
+
+uint64 sys_bsem_free(void){
+    int semaphore_id;
+    if (argint(0, &semaphore_id) < 0)
+        return -1;
+    bsem_free(semaphore_id);
+    return 0;
+}
+
+uint64 sys_bsem_down(void){
+    int semaphore_id;
+    if (argint(0, &semaphore_id) < 0)
+        return -1;
+    bsem_down(semaphore_id);
+    return 0;
+}
+
+uint64 sys_bsem_up(void){
+    int semaphore_id;
+    if (argint(0, &semaphore_id) < 0)
+        return -1;
+    bsem_up(semaphore_id);
+    return 0;
+}
+
+
+
+
 

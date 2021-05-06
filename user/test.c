@@ -2,6 +2,7 @@
 #include "user/user.h"
 #include "kernel/fcntl.h"
 #include "kernel/syscall.h"
+#include "Csemaphore.h"
 
 #define SIG_DFL      0       // default signal handling
 #define SIG_IGN      1       // ignore signal
@@ -249,16 +250,71 @@ void signal_test(){
     printf("Finished testing signals\n");
 }
 
+void bsem_test(char *s){
+    int pid;
+    int bid = bsem_alloc();
+    bsem_down(bid);
+    printf("1. Parent downing semaphore\n");
+    if((pid = fork()) == 0){
+        printf("2. Child downing semaphore\n");
+        bsem_down(bid);
+        printf("4. Child woke up\n");
+        exit(0);
+    }
+    sleep(5);
+    printf("3. Let the child wait on the semaphore...\n");
+    sleep(10);
+    bsem_up(bid);
+
+    bsem_free(bid);
+    wait(&pid);
+
+    printf("Finished bsem test, make sure that the order of the prints is alright. Meaning (1...2...3...4)\n");
+}
+
 int main(int argc, char *argv[]) {
-    signal_test();
-    signal_handler_kernel_sig_test();
-    signal_handler_user_sig_test();
-//    printf("PID: %d\n", getpid());
-//    sigprocmastk_test();
-//    sigaction_test();
-//    fork_test();
-//    many_kills();
-//    stopcont();
+
+    int num1 = bsem_alloc();
+    int num2 = bsem_alloc();
+    int num3 = bsem_alloc();
+    int num4 = bsem_alloc();
+
+    if(num4 == -1){
+        printf("got -1\n");
+    }
+    printf("num1: %d\n", num1);
+    printf("num2: %d\n", num2);
+    printf("num3: %d\n", num3);
+    printf("num4: %d\n", num4);
+
+//    struct counting_semaphore csem;
+//    int retval;
+//    int pid;
+//
+//    retval = csem_alloc(&csem,1);
+//    if(retval==-1)
+//    {
+//        printf("failed csem alloc");
+//        exit(-1);
+//    }printf("bin1: %d, bin2:%d, initial value: %d\n",csem.binary_semaphore1, csem.binary_semaphore2, csem.value);
+//    csem_down(&csem);
+//    printf("1. Parent downing semaphore\n");
+//    if((pid = fork()) == 0){
+//        printf("2. Child downing semaphore\n");
+//        csem_down(&csem);
+//        printf("4. Child woke up\n");
+//        exit(0);
+//    }
+//    sleep(5);
+//    printf("3. Let the child wait on the semaphore...\n");
+//    sleep(10);
+//    csem_up(&csem);
+//    csem_free(&csem);
+//    wait(&pid);
+//
+//    printf("Finished bsem test, make sure that the order of the prints is alright. Meaning (1...2...3...4)\n");
+
+
     exit(0);
 }
 

@@ -10,14 +10,15 @@ struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
 
+int semaphores[MAX_BSEM] = {[0 ... MAX_BSEM-1] = -1};
+
 struct proc *initproc;
 
 int nextpid = 1;
 int nexttid = 1;
 struct spinlock pid_lock;
 struct spinlock tid_lock;
-
-
+struct spinlock semaphore_lock;
 
 extern void forkret(void);
 
@@ -36,6 +37,87 @@ extern char trampoline[]; // trampoline.S
 // memory model when using p->parent.
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
+
+/// Task 4.1 - Binary Semaphores
+// Allocates a new binary semaphore and returns its descriptor(-1 if fail)
+int bsem_alloc(){
+
+    acquire(&semaphore_lock);
+    for (int i = 0; i < MAX_BSEM; i++){
+        if (semaphores[i] == -1) {
+            semaphores[i] = 1;
+            release(&semaphore_lock);
+            return i;
+        }
+    }
+    release(&semaphore_lock);
+    return -1;
+
+}
+
+// Frees the binary semaphore with the given descriptor
+void bsem_free(int semaphore_id){
+
+    acquire(&semaphore_lock);
+
+    struct proc *p;
+    struct thread *t;
+    for (p = proc; p < &proc[NPROC]; p++) {
+        for (t = p->threads; t < &p->threads[NTHREADS]; t++) {
+            if (t->blocked_on_semaphore == semaphore_id && t->state != UNUSED_T) {
+                release(&semaphore_lock);
+                return;
+            }
+        }
+    }
+    semaphores[semaphore_id] = -1;
+
+    release(&semaphore_lock);
+}
+
+// Attempt to lock the semaphore - in case that it is already locked,
+// block the current thread until it is unlocked and then lock it.
+void bsem_down(int semaphore_id){
+
+    acquire(&semaphore_lock);
+
+    if (semaphores[semaphore_id] == -1)
+        return; //uninitialized semaphore
+
+    struct thread *t = mythread();
+    if (semaphores[semaphore_id] == 1) {
+        semaphores[semaphore_id] = 0;
+    }
+    else {
+        t->blocked_on_semaphore = semaphore_id;
+        sleep(&semaphores[semaphore_id],&semaphore_lock);
+    }
+    release(&semaphore_lock);
+}
+
+// Releases (unlock) the semaphore.
+void bsem_up(int semaphore_id){
+
+    acquire(&semaphore_lock);
+    if (semaphores[semaphore_id] == -1)
+        return; //uninitialized semaphore
+
+    struct proc *p;
+    struct thread *t;
+    // release a thread that is waiting on the semaphore
+    for (p = proc; p < &proc[NPROC]; p++) {
+        for (t = p->threads; t < &p->threads[NTHREADS]; t++) {
+            if (t->blocked_on_semaphore == semaphore_id && t->state == SLEEPING) {
+                t->blocked_on_semaphore = -1;
+                release(&semaphore_lock);
+                wakeup(&semaphores[semaphore_id]); //release blocked thread
+                return;
+            }
+        }
+    }
+    semaphores[semaphore_id] = 1;
+    release(&semaphore_lock);
+}
 
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
@@ -68,19 +150,7 @@ procinit(void) {
     }
 }
 
-//// initialize the thread table at boot time.
-//void
-//threadinit(proc p) {
-//    struct thread *t;
-//    for (t = p.threads; t < &p.threads[NTHREADS]; t++) {
-//        initlock(&t->lock, "thread");
-//        t->kstack = KSTACK((int) (t - thread));
-//    }
-//}
 
-// Must be called with interrupts disabled,
-// to prevent race with process being moved
-// to a different CPU.
 int
 cpuid() {
     int id = r_tp();
@@ -138,8 +208,7 @@ alloctid() {
 /// should lock p->locked before calling this function!!
 int allocthread(struct proc *p) {
     struct thread *t;
-    int found = 0;
-    for (t = p->threads; found != 1 && t < &p->threads[NTHREADS]; t++) {
+    for (t = p->threads; t < &p->threads[NTHREADS]; t++) {
         if (t->state == UNUSED_T) {
             goto found;
         } else if (t->state == ZOMBIE_T) {
@@ -155,6 +224,7 @@ int allocthread(struct proc *p) {
     p->threads_num++;
     t->parent = p;
     t->tid = alloctid(); // thread id is it's number in the array
+    t->blocked_on_semaphore = -1;
     t->state = USED_T;
     // TODO: is the kalloc is ok?
     // Allocate a trapframe page.
@@ -251,6 +321,7 @@ freethread(struct thread *t) {
     t->killed = 0;
     t->xstate = 0;
     t->state = UNUSED_T;
+    t->blocked_on_semaphore = -1;
 }
 
 // free a proc structure and the data hanging from it,
@@ -674,7 +745,7 @@ sched(void) {
     if (!holding(&p->lock)) {
         panic("sched p->lock");
     }
-    // checl if the current CPU holds only 1 lock
+    // check if the current CPU holds only 1 lock
     if (mycpu()->noff != 1)
         panic("sched locks");
     if (t->state == RUNNING)
@@ -743,7 +814,7 @@ sleep(void *chan, struct spinlock *lk) {
     acquire(lk);
 }
 
-// Wake up all processes sleeping on chan.
+// Wake up all threads sleeping on chan.
 // Must be called without any p->lock.
 void
 wakeup(void *chan) {

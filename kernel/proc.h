@@ -17,7 +17,6 @@ struct context {
   uint64 s11;
 };
 
-#define NTHREADS 8
 
 // Per-CPU state.
 struct cpu {
@@ -97,13 +96,14 @@ enum threadstate {
 struct thread {
 //    struct spinlock lock;
     // t->lock must be held when using these:
-    enum threadstate state;       // Thread state
+    enum threadstate state;      // Thread state
     void *chan;                  // If non-zero, sleeping on chan
     int killed;                  // If non-zero, have been killed
     int xstate;                  // Exit status to be returned to parent's wait
-    int tid;                    // thread ID
-    struct proc *parent;        // ptr to the process that holds this thread
+    int tid;                     // thread ID
+    struct proc *parent;         // ptr to the process that holds this thread
     int should_exit;             // If non-zero, thread should preform exit
+    int blocked_on_semaphore;    // semaphore_id that he thread is waiting on it.
 
 
     //  these are private to the threads, so t->lock need not be held.
@@ -151,6 +151,9 @@ struct proc {
   struct thread threads[NTHREADS];   // thread array
   int threads_num;               // number of current threads in array
 };
+
+
+
 
 
 

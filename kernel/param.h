@@ -16,5 +16,7 @@
 #define SIGKILL      9
 #define SIGSTOP      17
 #define SIGCONT      19
+#define NTHREADS     8
+#define MAX_BSEM     3
 
 

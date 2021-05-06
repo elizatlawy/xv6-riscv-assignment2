@@ -110,6 +110,11 @@ int             sigaction(int signum, const struct sigaction *act, struct sigact
 void            signal_handler(void);
 void            exit_thread(int);
 void            exit_process(int);
+int             bsem_alloc();
+void            bsem_free(int);
+void            bsem_down(int);
+void            bsem_up(int);
+
 
 // swtch.S
 void            swtch(struct context*, struct context*);
