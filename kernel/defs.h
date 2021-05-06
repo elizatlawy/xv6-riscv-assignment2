@@ -114,7 +114,11 @@ int             bsem_alloc();
 void            bsem_free(int);
 void            bsem_down(int);
 void            bsem_up(int);
-
+int             kthread_create(uint64,uint64);
+struct thread*  allocthread(struct proc *p);
+int             kthread_id();
+void            kthread_exit(int status);
+int             kthread_join(int thread_id, uint64 status);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

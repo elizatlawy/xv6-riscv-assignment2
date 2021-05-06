@@ -49,7 +49,7 @@ usertrap(void) {
 
     if (r_scause() == 8) {
         // system call
-        if(t->should_exit)
+        if (t->killed || t->should_exit)
             exit_thread(0);
         if (p->killed)
             exit_process(-1);
@@ -65,25 +65,18 @@ usertrap(void) {
     } else if ((which_dev = devintr()) != 0) {
         // ok
     } else {
-        printf("usertrap(): unexpected scause %d pid=%d\n", r_scause(), p->pid);
+        printf("usertrap(): unexpected scause %d pid=%d, tid=%d\n", r_scause(), p->pid, t->tid);
         printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
         t->killed = 1;
     }
-    if (t->killed){
+    if (t->killed || t->should_exit) {
 //        printf("in usertrap Thread EXIT TID: %d form PID: %d Killed\n",t->tid, p->pid);
         exit_thread(-1);
     }
-//    if (p->killed){
-//        printf("in usertrap Process EXIT PID: %d Killed\n", p->pid);
-//        exit_process(-1);
-//    }
 
     // give up the CPU if this is a timer interrupt.
     if (which_dev == 2)
         yield();
-//    if(p->lock.locked == 1){
-//        printf("locked\n");
-//    }
     usertrapret();
 }
 
@@ -136,8 +129,12 @@ usertrapret(void) {
     // jump to trampoline.S at the top of memory, which
     // switches to the user page table, restores user registers,
     // and switches to user mode with sret.
+
     uint64 fn = TRAMPOLINE + (userret - trampoline);
-    ((void (*)(uint64, uint64)) fn)(TRAPFRAME, satp);
+    ((void (*)(uint64, uint64)) fn)(TRAPFRAME + (sizeof(struct trapframe) * (t - p->threads)), satp);
+    // orig:
+//    ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
+
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,
@@ -156,7 +153,7 @@ kerneltrap() {
 
     if ((which_dev = devintr()) == 0) {
         printf("scause %d\n", scause);
-        printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
+        printf("sepc=%d stval=%d\n", r_sepc(), r_stval());
         panic("kerneltrap");
     }
 

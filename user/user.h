@@ -1,7 +1,6 @@
 struct stat;
 struct rtcdate;
 
-
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
@@ -27,6 +26,10 @@ int uptime(void);
 uint sigprocmask(uint sigmask);
 int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact);
 void sigret(void);
+int kthread_create(void(*start_func )(),void *stack);
+int kthread_id();
+void kthread_exit(int status);
+int kthread_join(int thread_id, int* status);
 int bsem_alloc();
 void bsem_free(int);
 void bsem_down(int);

@@ -2,13 +2,10 @@
 #include "user/user.h"
 #include "kernel/fcntl.h"
 #include "kernel/syscall.h"
+#include "kernel/param.h"
 #include "Csemaphore.h"
 
-#define SIG_DFL      0       // default signal handling
-#define SIG_IGN      1       // ignore signal
-#define SIGKILL      9
-#define SIGSTOP      17
-#define SIGCONT      19
+
 
 int flag = 0;
 
@@ -104,7 +101,7 @@ void kill_test() {
         kill(child_pid, 9);
         int status;
         wait(&status);
-        printf("exit wait -> child PID: %d killed with status: %d \n", child_pid,status);
+        printf("exit wait -> child PID: %d killed with status: %d \n", child_pid, status);
     } else { // child
         sleep(10);
     }
@@ -226,22 +223,22 @@ void signal_handler_user_sig_test(){
 
 int wait_sig = 0;
 
-void test_handler(int signum){
+void test_handler(int signum) {
     wait_sig = 1;
-    printf("Received sigtest\n");
+//    printf("Received sigtest\n");
 }
 
-void signal_test(){
+void signal_test() {
     int pid;
     int testsig;
-    testsig=15;
+    testsig = 15;
     struct sigaction act = {test_handler, (uint)(1 << 29)};
     struct sigaction old;
 
     sigprocmask(0);
     sigaction(testsig, &act, &old);
-    if((pid = fork()) == 0){
-        while(!wait_sig)
+    if ((pid = fork()) == 0) {
+        while (!wait_sig)
             sleep(1);
         exit(0);
     }
@@ -272,20 +269,46 @@ void bsem_test(char *s){
     printf("Finished bsem test, make sure that the order of the prints is alright. Meaning (1...2...3...4)\n");
 }
 
-int main(int argc, char *argv[]) {
 
-    int num1 = bsem_alloc();
-    int num2 = bsem_alloc();
-    int num3 = bsem_alloc();
-    int num4 = bsem_alloc();
+//
+//void thread_func() {
+////    kthread_id();
+////    printf("Thread: %d is now running\n", tid);
+////    kthread_exit(tid);
+////    exit(tid);
+//}
+//
+//void thread_test() {
+//    printf("thread_func() addr is %d\n", thread_func);
+//    int tid1;
+//    void *stack1 = malloc(MAX_STACK_SIZE);
+//    printf("stack1 addr is %d\n", stack1);
+//    tid1 = kthread_create(thread_func, stack1);
+//    printf("thread TID: %d created\n", tid1);
+//    free(stack1);
+//    printf("Finished testing threads, thread1 id: %d\n", tid1);
+//}
 
-    if(num4 == -1){
-        printf("got -1\n");
+void test_thread(){
+    printf("Thread is now running\n");
+    for(int i = 0; i <= 20; i++){
+        printf("%d\n", i);
     }
-    printf("num1: %d\n", num1);
-    printf("num2: %d\n", num2);
-    printf("num3: %d\n", num3);
-    printf("num4: %d\n", num4);
+    kthread_exit(0);
+    printf("Thread is now running\n");
+}
+void thread_test(){
+    int tid;
+    int status;
+    void* stack = malloc(MAX_STACK_SIZE);
+    tid = kthread_create(test_thread, stack);
+    kthread_join(tid,&status);
+    tid = kthread_id();
+    free(stack);
+    printf("Finished testing threads, main thread id: %d, %d\n", tid, status);
+}
+
+int main(int argc, char *argv[]) {
 
 //    struct counting_semaphore csem;
 //    int retval;

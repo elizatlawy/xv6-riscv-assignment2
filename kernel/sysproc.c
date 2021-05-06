@@ -121,7 +121,7 @@ uint64 sys_sigaction(void) {
     if (argaddr(2, &oldact_ptr) < 0)
         return -1;
 
-    return sigaction(signum, (const struct sigaction*) act_ptr, (struct sigaction*) oldact_ptr);
+    return sigaction(signum, (const struct sigaction *) act_ptr, (struct sigaction *) oldact_ptr);
 }
 
 /// Task 2.1.5
@@ -136,6 +136,39 @@ uint64 sys_sigret(void){
     p->in_usr_sig_handler = 0;
     release(&p->lock);
     return 0;
+}
+
+/// Task 3.2 - Threads system calls
+uint64 sys_kthread_create(void) {
+    uint64 start_func;
+    uint64 stack;
+    if (argaddr(0, &start_func) < 0)
+        return -1;
+    if (argaddr(1, &stack) < 0)
+        return -1;
+    return kthread_create(start_func, stack);
+}
+
+uint64 sys_kthread_id(void) {
+    return kthread_id();
+}
+
+uint64 sys_kthread_exit(void) {
+    int status;
+    if (argint(0, &status) < 0)
+        return -1;
+    kthread_exit(status);
+    return 0;
+}
+
+uint64 sys_kthread_join(void) {
+    int thread_id;
+    if (argint(0, &thread_id) < 0)
+        return -1;
+    uint64 status;
+    if (argaddr(1, &status) < 0)
+        return -1;
+    return kthread_join(thread_id, status);
 }
 
 /// Task 4.1 - Binary Semaphores
@@ -167,8 +200,6 @@ uint64 sys_bsem_up(void){
     bsem_up(semaphore_id);
     return 0;
 }
-
-
 
 
 
