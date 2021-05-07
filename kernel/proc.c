@@ -648,11 +648,10 @@ exit_process(int status) {
     // Parent might be sleeping in wait().
     wakeup(p->parent);
     acquire(&p->lock);
-    p->xstate = status;
-//    p->killed = 1;
-    p->state = ZOMBIE;
     t->xstate = status;
     t->state = ZOMBIE_T;
+    p->xstate = status;
+    p->state = ZOMBIE;
     release(&wait_lock);
     // Jump into the scheduler, never to return.
     sched();
@@ -943,7 +942,6 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len) {
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
 // No lock to avoid wedging a stuck machine further.
-// TODO: add threas support to this one
 void
 procdump(void) {
     static char *states[] = {
@@ -989,7 +987,6 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 
 /// Task 2.4
 /// Checking for the process's 32 possible pending signals and handling them.
-// TODO: shold we lcok the fucnrion so only 1 thread will handle all the each signal each time?
 void signal_handler(void) {
     struct proc *p = myproc();
     struct thread *t = mythread();
@@ -1016,7 +1013,6 @@ void signal_handler(void) {
                         curr_t->state = STOPPED;
                 }
                 while ((p->pending_signals & (1 << SIGCONT)) == 0) { // while SIGCONT is not turned on
-                    // TODO: should all thread of this proc be frozen or just the current one?
                     release(&p->lock);
                     yield();
                     acquire(&p->lock);
