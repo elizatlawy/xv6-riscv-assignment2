@@ -104,6 +104,7 @@ struct thread {
     int tid;                    // thread ID
     struct proc *parent;        // ptr to the process that holds this thread
     int should_exit;             // If non-zero, thread should preform exit
+    int blocked_on_semaphore;
 
 
     //  these are private to the threads, so t->lock need not be held.

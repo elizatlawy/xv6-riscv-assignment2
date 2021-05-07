@@ -7,7 +7,6 @@
 
 
 
-
 int csem_alloc(struct counting_semaphore *sem, int initial_value){
     int binary_semaphore1 = bsem_alloc();
     int binary_semaphore2 = bsem_alloc();
@@ -25,7 +24,7 @@ int csem_alloc(struct counting_semaphore *sem, int initial_value){
 void csem_free(struct counting_semaphore *sem){
     bsem_free(sem->binary_semaphore1);
     bsem_free(sem->binary_semaphore2);
-    free(sem);
+
 }
 
 void csem_down(struct counting_semaphore *sem){
@@ -42,10 +41,7 @@ void csem_up(struct counting_semaphore *sem){
     bsem_down(sem->binary_semaphore1);
     sem->value++;
     if (sem->value == 1){
-        printf("hey\n");
         bsem_up(sem->binary_semaphore2);
     }
-    printf("hey2\n");
     bsem_up(sem->binary_semaphore1);
-    printf("hey3\n");
 }

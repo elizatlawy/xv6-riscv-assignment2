@@ -43,6 +43,7 @@ struct spinlock wait_lock;
 int bsem_alloc(){
 
     acquire(&semaphore_lock);
+
     for (int i = 0; i < MAX_BSEM; i++){
         if (semaphores[i] == -1) {
             semaphores[i] = 1;
@@ -78,39 +79,43 @@ void bsem_free(int semaphore_id){
 // Attempt to lock the semaphore - in case that it is already locked,
 // block the current thread until it is unlocked and then lock it.
 void bsem_down(int semaphore_id){
-
     acquire(&semaphore_lock);
 
-    if (semaphores[semaphore_id] == -1)
+    if (semaphores[semaphore_id] == -1){
+        release(&semaphore_lock);
         return; //uninitialized semaphore
+    }
 
     struct thread *t = mythread();
     if (semaphores[semaphore_id] == 1) {
         semaphores[semaphore_id] = 0;
+        release(&semaphore_lock);
     }
     else {
         t->blocked_on_semaphore = semaphore_id;
         sleep(&semaphores[semaphore_id],&semaphore_lock);
+        release(&semaphore_lock);
     }
-    release(&semaphore_lock);
+
 }
 
 // Releases (unlock) the semaphore.
 void bsem_up(int semaphore_id){
-
     acquire(&semaphore_lock);
-    if (semaphores[semaphore_id] == -1)
+    if (semaphores[semaphore_id] == -1){
+        release(&semaphore_lock);
         return; //uninitialized semaphore
+    }
 
     struct proc *p;
     struct thread *t;
     // release a thread that is waiting on the semaphore
     for (p = proc; p < &proc[NPROC]; p++) {
-        for (t = p->threads; t < &p->threads[NTHREADS]; t++) {
+        for (t = p->threads; t < &p->threads[NTHREAD]; t++) {
             if (t->blocked_on_semaphore == semaphore_id && t->state == SLEEPING) {
                 t->blocked_on_semaphore = -1;
-                release(&semaphore_lock);
                 wakeup(&semaphores[semaphore_id]); //release blocked thread
+                release(&semaphore_lock);
                 return;
             }
         }

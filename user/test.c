@@ -180,7 +180,7 @@ void signal_handler_kernel_sig_test(){
         }
     }
 }
-// TODO: understand if it is a real bug!!
+
 void signal_handler_user_sig_test(){
     printf("addr is %p\n", handler2);
     printf("addr is %p\n", handler3);
@@ -333,9 +333,29 @@ int main(int argc, char *argv[]) {
 //    sleep(10);
 //    csem_up(&csem);
 //    csem_free(&csem);
+//
 //    wait(&pid);
 //
 //    printf("Finished bsem test, make sure that the order of the prints is alright. Meaning (1...2...3...4)\n");
+    int pid;
+    int bid = bsem_alloc();
+    bsem_down(bid);
+    printf("1. Parent downing semaphore\n");
+    if((pid = fork()) == 0){
+        printf("2. Child downing semaphore\n");
+        bsem_down(bid);
+        printf("4. Child woke up\n");
+        exit(0);
+    }
+    sleep(5);
+    printf("3. Let the child wait on the semaphore...\n");
+    sleep(10);
+    bsem_up(bid);
+
+    bsem_free(bid);
+    wait(&pid);
+
+    printf("Finished bsem test, make sure that the order of the prints is alright. Meaning (1...2...3...4)\n");
 
 
     exit(0);
