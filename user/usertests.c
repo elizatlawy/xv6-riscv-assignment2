@@ -21,6 +21,8 @@
 
 char buf[BUFSZ];
 
+
+
 // what if you pass ridiculous pointers to system calls
 // that read user memory with copyin?
 void
@@ -2653,6 +2655,7 @@ execout(char *s)
   exit(0);
 }
 
+
 //
 // use sbrk() to count how many free physical memory pages there are.
 // touches the pages to force allocation.
@@ -2744,6 +2747,140 @@ run(void f(char *), char *s) {
   }
 }
 
+void
+thread_test()
+{
+    int tid =  kthread_id();
+    sleep(100);
+    printf("Hello World! tid: %d\n", tid);
+    kthread_exit(tid);
+}
+
+void
+thread_test3(char* s)
+{
+    int tid;
+    int ids[8];
+    void* stacks[8];
+    for(int i = 0; i < 8; i++){
+        void* stack = malloc(MAX_STACK_SIZE);
+        stacks[i] = stack;
+        ids[i] = kthread_create(thread_test, stack);
+        sleep(3);
+    }
+    // kthread_exit(0);  // exit process
+    tid = kthread_id();
+    printf("running thread is: %d\n", tid);
+
+    for(int i = 0; i<8;i++){
+        if(ids[i]!=-1){
+            kthread_join(ids[i],0);
+            free(stacks[i]);
+        }
+        else{
+            printf("try %d fail\n",i);
+        }
+    }
+
+    kthread_exit(0); // exit process
+    // exit(0);
+
+}
+
+void test_thread4(void){
+    int tid =  kthread_id();
+//    printf("Hello World! tid: %d\n", tid);
+//    sleep(100);
+//    printf("After sleep TID: %d is about to exit\n",tid);
+    kthread_exit(tid);
+}
+void
+thread_test4(char* s)
+{
+    int tid;
+    int status;
+    int ids[8];
+    void* stacks[8];
+    for(int i = 0; i < 7; i++){
+        void* stack = malloc(MAX_STACK_SIZE);
+        ids[i] = tid;
+        stacks[i] = stack;
+        tid = kthread_create(test_thread4, stack);
+//        printf("new thread in town: %d\n", tid);
+    }
+    sleep(10);
+    void* stack = malloc(MAX_STACK_SIZE);
+    ids[7] = tid;
+    stacks[7] = stack;
+    tid = kthread_create(test_thread4, stack);
+//    printf("the 9 thread CREATED: %d\n", tid);
+
+    for(int i = 0; i < 8; i++){
+        tid = ids[i];
+        kthread_join(tid, &status);
+//        printf("joined with: %d exit status: %d\n", tid, status);
+        free(stacks[i]);
+    }
+    for(int i = 0; i < 8; i++){
+        tid = ids[i];
+        free(stacks[i]);
+    }
+    tid = kthread_id();
+    printf("running thread is: %d\n", tid);
+    kthread_exit(0); // exit process
+    // exit(0);
+}
+int wait_sig = 0;
+void test_handler(int signum) {
+    wait_sig = 1;
+    printf("Received sigtest\n");
+}
+
+void signal_test(char* s) {
+    int pid;
+    int testsig;
+    testsig = 15;
+    struct sigaction act = {test_handler, (uint)(1 << 29)};
+    struct sigaction old;
+
+    sigprocmask(0);
+    sigaction(testsig, &act, &old);
+    if ((pid = fork()) == 0) {
+        while (!wait_sig)
+            sleep(1);
+        exit(0);
+    }
+    kill(pid, testsig);
+    wait(&pid);
+    printf("Finished testing signals\n");
+}
+
+void many_proc_many_thread() {
+    int father_pid = getpid();
+    int childs_pid[10];
+    for (int i = 1; i < 50; i++) {
+        childs_pid[i] = fork();
+        if (childs_pid[i] < 0) {
+            printf("fork failed\n");
+            exit(1);
+        }
+        if (childs_pid[i] == 0) { // child
+            char *s = 0;
+            thread_test4(s);
+        }
+    }
+    if (getpid() == father_pid) {
+        for (int i = 1; i < 50; i++) {
+            int status;
+            wait(&status);
+            printf("Child PID: %d exit with status: %d\n", childs_pid[i], status);
+        }
+        sleep(500);
+        printf("FINISHED ALLL\n");
+        exit(0);
+    }
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -2765,66 +2902,71 @@ main(int argc, char *argv[])
     void (*f)(char *);
     char *s;
   } tests[] = {
-    {manywrites, "manywrites"},
-    {execout, "execout"},
-    {copyin, "copyin"},
-    {copyout, "copyout"},
-    {copyinstr1, "copyinstr1"},
-    {copyinstr2, "copyinstr2"},
-    {copyinstr3, "copyinstr3"},
-    {rwsbrk, "rwsbrk" },
-    {truncate1, "truncate1"},
-    {truncate2, "truncate2"},
-    {truncate3, "truncate3"},
-    {reparent2, "reparent2"},
-    {pgbug, "pgbug" },
-    {sbrkbugs, "sbrkbugs" },
-     {badwrite, "badwrite" },
-    {badarg, "badarg" },
-    {reparent, "reparent" },
-    {twochildren, "twochildren"},
-    {forkfork, "forkfork"},
-    {forkforkfork, "forkforkfork"},
-    {argptest, "argptest"},
-    {createdelete, "createdelete"},
-    {linkunlink, "linkunlink"},
-    {linktest, "linktest"},
-    {unlinkread, "unlinkread"},
-    {concreate, "concreate"},
-    {subdir, "subdir"},
-    {fourfiles, "fourfiles"},
-    {sharedfd, "sharedfd"},
-    {dirtest, "dirtest"},
-    {exectest, "exectest"},
-    {bigargtest, "bigargtest"},
-    {bigwrite, "bigwrite"},
-    {bsstest, "bsstest"},
-    {sbrkbasic, "sbrkbasic"},
-    {sbrkmuch, "sbrkmuch"},
-    {kernmem, "kernmem"},
-    {sbrkfail, "sbrkfail"},
-    {sbrkarg, "sbrkarg"},
-    {validatetest, "validatetest"},
-    {stacktest, "stacktest"},
-    {opentest, "opentest"},
-    {writetest, "writetest"},
-    {writebig, "writebig"},
-    {createtest, "createtest"},
-    {openiputtest, "openiput"},
-    {exitiputtest, "exitiput"},
-    {iputtest, "iput"},
-    {mem, "mem"},
-    {pipe1, "pipe1"},
-    {killstatus, "killstatus"},
-    {preempt, "preempt"},
-    {exitwait, "exitwait"},
-    {rmdot, "rmdot"},
-    {fourteen, "fourteen"},
-    {bigfile, "bigfile"},
-    {dirfile, "dirfile"},
-    {iref, "iref"},
-    {forktest, "forktest"},
+//    {manywrites, "manywrites"},
+//    {execout, "execout"},
+//    {copyin, "copyin"},
+//    {copyout, "copyout"},
+//    {copyinstr1, "copyinstr1"},
+//    {copyinstr2, "copyinstr2"},
+//    {copyinstr3, "copyinstr3"},
+//    {rwsbrk, "rwsbrk" },
+//    {truncate1, "truncate1"},
+//    {truncate2, "truncate2"},
+//    {truncate3, "truncate3"},
+//    {reparent2, "reparent2"},
+//    {pgbug, "pgbug" },
+//    {sbrkbugs, "sbrkbugs" },
+//     {badwrite, "badwrite" },
+//    {badarg, "badarg" },
+//    {reparent, "reparent" },
+//    {twochildren, "twochildren"},
+//    {forkfork, "forkfork"},
+//    {forkforkfork, "forkforkfork"},
+//    {argptest, "argptest"},
+//    {createdelete, "createdelete"},
+//    {linkunlink, "linkunlink"},
+//    {linktest, "linktest"},
+//    {unlinkread, "unlinkread"},
+//    {concreate, "concreate"},
+//    {subdir, "subdir"},
+//    {fourfiles, "fourfiles"},
+//    {sharedfd, "sharedfd"},
+//    {dirtest, "dirtest"},
+//    {exectest, "exectest"},
+//    {bigargtest, "bigargtest"},
+//    {bigwrite, "bigwrite"},
+//    {bsstest, "bsstest"},
+//    {sbrkbasic, "sbrkbasic"},
+//    {sbrkmuch, "sbrkmuch"},
+//    {kernmem, "kernmem"},
+//    {sbrkfail, "sbrkfail"},
+//    {sbrkarg, "sbrkarg"},
+//    {validatetest, "validatetest"},
+//    {stacktest, "stacktest"},
+//    {opentest, "opentest"},
+//    {writetest, "writetest"},
+//    {writebig, "writebig"},
+//    {createtest, "createtest"},
+//    {openiputtest, "openiput"},
+//    {exitiputtest, "exitiput"},
+//    {iputtest, "iput"},
+//    {mem, "mem"},
+//    {pipe1, "pipe1"},
+//    {killstatus, "killstatus"},
+//    {preempt, "preempt"},
+//    {exitwait, "exitwait"},
+//    {rmdot, "rmdot"},
+//    {fourteen, "fourteen"},
+//    {bigfile, "bigfile"},
+//    {dirfile, "dirfile"},
+//    {iref, "iref"},
+//    {forktest, "forktest"},
 //    {bigdir, "bigdir"}, // slow
+//    {thread_test3, "thread_test3"},
+//    {thread_test4, "thread_test4"},
+//    {signal_test, "thread_test4"},
+    {many_proc_many_thread, "many_proc_many_thread"},
+
     { 0, 0},
   };
 
@@ -2877,3 +3019,4 @@ main(int argc, char *argv[])
     exit(0);
   }
 }
+

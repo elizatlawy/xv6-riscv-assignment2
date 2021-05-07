@@ -146,7 +146,8 @@ uint64 sys_kthread_create(void) {
         return -1;
     if (argaddr(1, &stack) < 0)
         return -1;
-    return kthread_create(start_func, stack);
+    int tid = kthread_create(start_func, stack);
+    return tid;
 }
 
 uint64 sys_kthread_id(void) {
@@ -157,13 +158,16 @@ uint64 sys_kthread_exit(void) {
     int status;
     if (argint(0, &status) < 0)
         return -1;
+    if(status == -1){
+        printf("inside sys_kthread_exit got status = -1\n");
+    }
     kthread_exit(status);
     return 0;
 }
 
 uint64 sys_kthread_join(void) {
     int thread_id;
-    if (argint(0, &thread_id) < 0)
+    if (argint(0, &thread_id) < 0 || thread_id < 1)
         return -1;
     uint64 status;
     if (argaddr(1, &status) < 0)

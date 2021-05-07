@@ -166,17 +166,7 @@ void signal_handler_kernel_sig_test() {
         wait(&status);
         printf("Child PID: %d exit with status: %d\n", child_pid, status);
     } else { // child
-//        uint newmask = (1 << 19);
-//        int oldmask = sigprocmask(newmask);
-//        printf("child old mask after ignoring SIGCONT %d\n", oldmask);
-//        newmask = (1 << 17);
-//        oldmask = sigprocmask(newmask);
-//        printf("child old mask after ignoring SIGSTOP %d\n", oldmask);
-//        newmask = (1 << 9);
-//        oldmask = sigprocmask(newmask);
-//        printf("child old mask after ignoring SIGKILL %d\n", oldmask);
         sleep(15);
-
         for (int i = 1; i <= 50; i++) {
             printf("counting: %d \n", i);
             sleep(1);
@@ -228,7 +218,7 @@ int wait_sig = 0;
 
 void test_handler(int signum) {
     wait_sig = 1;
-//    printf("Received sigtest\n");
+    printf("Received sigtest\n");
 }
 
 void signal_test() {
@@ -252,12 +242,12 @@ void signal_test() {
 
 
 void test_thread(){
-    printf("Thread is now running\n");
-    for(int i = 0; i <= 20; i++){
-        printf("%d\n", i);
-    }
-//    for(;;);
     int tid = kthread_id();
+    printf("Thread: %d is now running\n",tid);
+//    for(int i = 0; i <= 20; i++){
+//        printf("%d\n", i);
+//    }
+//    for(;;);
     kthread_exit(tid);
 }
 void thread_test(){
@@ -265,6 +255,8 @@ void thread_test(){
     int status;
     void* stack = malloc(MAX_STACK_SIZE);
     tid = kthread_create(test_thread, stack);
+    printf("tid: %d after kthread_create\n",tid);
+    sleep(10);
     kthread_join(tid,&status);
     tid = kthread_id();
     free(stack);
