@@ -320,7 +320,7 @@ int main(int argc, char *argv[]) {
 //    wait(&pid);
 //
 //    printf("Finished bsem test, make sure that the order of the prints is alright. Meaning (1...2...3...4)\n");
-
+// printf("");
 
     exit(0);
 }
