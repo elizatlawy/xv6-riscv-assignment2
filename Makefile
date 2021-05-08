@@ -54,6 +54,7 @@ QEMU = qemu-system-riscv64
 
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
+AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
@@ -139,6 +140,7 @@ UPROGS=\
 	$U/_test3\
 	$U/_usertests_threads\
 	$U/_usertests3\
+	$U/_sanity\
 
 
 fs.img: mkfs/mkfs README $(UPROGS)

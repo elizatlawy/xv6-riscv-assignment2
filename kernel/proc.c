@@ -690,7 +690,6 @@ exit_process(int status) {
     if (p == initproc)
         panic("init exiting");
     // Close all open files.
-    // TODO: make sure we close all active file only after all thread of this process exit
     for (int fd = 0; fd < NOFILE; fd++) {
         if (p->ofile[fd]) {
             struct file *f = p->ofile[fd];
