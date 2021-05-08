@@ -63,6 +63,7 @@ void bsem_free(int semaphore_id){
 
     struct proc *p;
     struct thread *t;
+    // check if the some thread is blocked on this semaphore, if yes return without free the semaphore
     for (p = proc; p < &proc[NPROC]; p++) {
         for (t = p->threads; t < &p->threads[NTHREADS]; t++) {
             if (t->blocked_on_semaphore == semaphore_id && t->state != UNUSED_T) {
@@ -71,6 +72,7 @@ void bsem_free(int semaphore_id){
             }
         }
     }
+    // release the semaphore
     semaphores[semaphore_id] = -1;
 
     release(&semaphore_lock);
