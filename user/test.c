@@ -225,7 +225,7 @@ int wait_sig = 0;
 
 void test_handler(int signum) {
     wait_sig = 1;
-//    printf("Received sigtest\n");
+    printf("Received sigtest\n");
 }
 
 void signal_test() {
@@ -247,61 +247,23 @@ void signal_test() {
     printf("Finished testing signals\n");
 }
 
-void bsem_test(char *s){
-    int pid;
-    int bid = bsem_alloc();
-    bsem_down(bid);
-    printf("1. Parent downing semaphore\n");
-    if((pid = fork()) == 0){
-        printf("2. Child downing semaphore\n");
-        bsem_down(bid);
-        printf("4. Child woke up\n");
-        exit(0);
-    }
-    sleep(5);
-    printf("3. Let the child wait on the semaphore...\n");
-    sleep(10);
-    bsem_up(bid);
-
-    bsem_free(bid);
-    wait(&pid);
-
-    printf("Finished bsem test, make sure that the order of the prints is alright. Meaning (1...2...3...4)\n");
-}
-
-
-//
-//void thread_func() {
-////    kthread_id();
-////    printf("Thread: %d is now running\n", tid);
-////    kthread_exit(tid);
-////    exit(tid);
-//}
-//
-//void thread_test() {
-//    printf("thread_func() addr is %d\n", thread_func);
-//    int tid1;
-//    void *stack1 = malloc(MAX_STACK_SIZE);
-//    printf("stack1 addr is %d\n", stack1);
-//    tid1 = kthread_create(thread_func, stack1);
-//    printf("thread TID: %d created\n", tid1);
-//    free(stack1);
-//    printf("Finished testing threads, thread1 id: %d\n", tid1);
-//}
 
 void test_thread(){
-    printf("Thread is now running\n");
-    for(int i = 0; i <= 20; i++){
-        printf("%d\n", i);
-    }
-    kthread_exit(0);
-    printf("Thread is now running\n");
+    int tid = kthread_id();
+    printf("Thread: %d is now running\n",tid);
+//    for(int i = 0; i <= 20; i++){
+//        printf("%d\n", i);
+//    }
+//    for(;;);
+    kthread_exit(tid);
 }
 void thread_test(){
     int tid;
     int status;
     void* stack = malloc(MAX_STACK_SIZE);
     tid = kthread_create(test_thread, stack);
+    printf("tid: %d after kthread_create\n",tid);
+    sleep(10);
     kthread_join(tid,&status);
     tid = kthread_id();
     free(stack);
