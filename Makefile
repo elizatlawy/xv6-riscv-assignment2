@@ -34,7 +34,7 @@ OBJS = \
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
-#TOOLPREFIX = 
+#TOOLPREFIX =
 
 # Try to infer the correct TOOLPREFIX if not set
 ifndef TOOLPREFIX
@@ -59,7 +59,7 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -lpthread -D_REENTRANT
+CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -lpthread -D_REENTRANT -O0
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
@@ -77,7 +77,7 @@ endif
 LDFLAGS = -z max-page-size=4096
 
 $K/kernel: $(OBJS) $K/kernel.ld $U/initcode
-	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) 
+	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS)
 	$(OBJDUMP) -S $K/kernel > $K/kernel.asm
 	$(OBJDUMP) -t $K/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $K/kernel.sym
 
@@ -135,7 +135,10 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-
+	$U/_test\
+	$U/_test2\
+	$U/_test3\
+	$U/_usertests3\
 
 
 fs.img: mkfs/mkfs README $(UPROGS)
@@ -143,7 +146,7 @@ fs.img: mkfs/mkfs README $(UPROGS)
 
 -include kernel/*.d user/*.d
 
-clean: 
+clean:
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	*/*.o */*.d */*.asm */*.sym \
 	$U/initcode $U/initcode.out $K/kernel fs.img \
