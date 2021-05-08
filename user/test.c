@@ -64,32 +64,44 @@ void sigprocmastk_test() {
         uint oldmask = sigprocmask(newmask);
         printf("child old mask %d\n", oldmask);
     }
+    exit(0);
+}
+
+void handler2(int x) {
+    printf("2\n");
+}
+
+void handler3(int x) {
+    printf("3\n");
+}
+
+void handler4(int x) {
+    printf("4\n");
 }
 
 
-
-//void sigaction_test() {
-//    struct sigaction act;
-////    int sig_kill = 9;
-//    act.sa_handler = handler2; // put the address of func handler
-////    act.sa_handler = (void*)9;
-//    act.sigmask = (1 << 9);
-//    printf("handler address: %d\n", act.sa_handler);
-//    printf("act sigmask: %d\n", act.sigmask);
-//    struct sigaction old_act;
-//    sigaction(15, &act, &old_act);
-//    printf("old act sigmask %d\n", old_act.sigmask);
-//    printf("old act sigmask %d\n", old_act.sa_handler);
-//    struct sigaction act2;
-//    act2.sigmask = (1 << 9);
-//    act2.sa_handler = do_stuff2;
-//    printf("do_stuff2 address: %d\n", act2.sa_handler);
-//    printf("act2 sigmask: %d\n", act2.sigmask);
-//    struct sigaction old_act2;
-//    sigaction(15, &act, &old_act2);
-//    printf("old act2 sigmask %d\n", old_act2.sigmask);
-//    printf("old act2 address %d\n", old_act2.sa_handler);
-//}
+void sigaction_test() {
+    struct sigaction act;
+//    int sig_kill = 9;
+    act.sa_handler = handler2; // put the address of func handler
+//    act.sa_handler = (void*)9;
+    act.sigmask = (1 << 9);
+    printf("handler address: %d\n", act.sa_handler);
+    printf("act sigmask: %d\n", act.sigmask);
+    struct sigaction old_act;
+    sigaction(15, &act, &old_act);
+    printf("old act sigmask %d\n", old_act.sigmask);
+    printf("old act sigmask %d\n", old_act.sa_handler);
+    struct sigaction act2;
+    act2.sigmask = (1 << 9);
+    act2.sa_handler = do_stuff2;
+    printf("do_stuff2 address: %d\n", act2.sa_handler);
+    printf("act2 sigmask: %d\n", act2.sigmask);
+    struct sigaction old_act2;
+    sigaction(15, &act, &old_act2);
+    printf("old act2 sigmask %d\n", old_act2.sigmask);
+    printf("old act2 address %d\n", old_act2.sa_handler);
+}
 
 void kill_test() {
     int child_pid = fork();
@@ -130,17 +142,7 @@ void fork_test(){
     }
 }
 
-void handler2(int x) {
-    printf("2\n");
-}
 
-void handler3(int x) {
-    printf("3\n");
-}
-
-void handler4(int x) {
-    printf("4\n");
-}
 
 void signal_handler_kernel_sig_test(){
     int child_pid = fork();
@@ -270,56 +272,43 @@ void thread_test(){
     printf("Finished testing threads, main thread id: %d, %d\n", tid, status);
 }
 
-int main(int argc, char *argv[]) {
-// bsem test
-//    struct counting_semaphore csem;
-//    int retval;
-//    int pid;
-//
-//    retval = csem_alloc(&csem,1);
-//    if(retval==-1)
-//    {
-//        printf("failed csem alloc");
-//        exit(-1);
-//    }printf("bin1: %d, bin2:%d, initial value: %d\n",csem.binary_semaphore1, csem.binary_semaphore2, csem.value);
-//    csem_down(&csem);
-//    printf("1. Parent downing semaphore\n");
-//    if((pid = fork()) == 0){
-//        printf("2. Child downing semaphore\n");
-//        csem_down(&csem);
-//        printf("4. Child woke up\n");
-//        exit(0);
-//    }
-//    sleep(5);
-//    printf("3. Let the child wait on the semaphore...\n");
-//    sleep(10);
-//    csem_up(&csem);
-//    csem_free(&csem);
-//
-//    wait(&pid);
-//
-//    printf("Finished bsem test, make sure that the order of the prints is alright. Meaning (1...2...3...4)\n");
-//
-// csem test
-    int pid;
-    int bid = bsem_alloc();
-    bsem_down(bid);
-    printf("1. Parent downing semaphore\n");
-    if((pid = fork()) == 0){
-        printf("2. Child downing semaphore\n");
-        bsem_down(bid);
-        printf("4. Child woke up\n");
-        exit(0);
+void sigstop_sigcont_sigkill_with_mask_test(){
+    int child_pid = fork();
+    if (child_pid < 0) {
+        printf("fork failed\n");
     }
-    sleep(5);
-    printf("3. Let the child wait on the semaphore...\n");
-    sleep(10);
-    bsem_up(bid);
+    else if (child_pid > 0) { // father
+        sleep(20);
+        int kill_res = -9;
+        sleep(10);
+        kill_res = kill(child_pid, 17); // SIGSTOP
+        printf(" SIGSTOP sent to child: %d with res: %d\n",child_pid,kill_res);
+        sleep(10);
+        kill_res = kill(child_pid, 9); // SIGKILL
+        printf(" SIGKILL sent to child: %d with res: %d\n",child_pid,kill_res);
+        int status;
+        wait(&status);
+        printf("Child PID: %d exit with status: %d\n",child_pid, status);
+    } else { // child
+        uint newmask = (1 << 19);
+        int oldmask = sigprocmask(newmask);
+        printf("child old mask after ignoring SIGCONT %d\n", oldmask);
+        newmask = (1 << 17);
+        oldmask = sigprocmask(newmask);
+        printf("child old mask after ignoring SIGSTOP %d\n", oldmask);
+        newmask = (1 << 9);
+        oldmask = sigprocmask(newmask);
+        printf("child old mask after ignoring SIGKILL %d\n", oldmask);
+        sleep(15);
+        for(int i = 1; i <= 50; i++){
+            printf("counting: %d \n",i);
+            sleep(1);
+        }
+    }
+}
 
-    bsem_free(bid);
-    wait(&pid);
-    printf("Finished bsem test, make sure that the order of the prints is alright. Meaning (1...2...3...4)\n");
-//
+int main(int argc, char *argv[]) {
+
     exit(0);
 }
 

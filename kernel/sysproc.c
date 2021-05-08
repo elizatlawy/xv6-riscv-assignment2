@@ -95,7 +95,7 @@ uint64 sys_sigprocmask(void) {
         return -1;
     int sigkill_bit = new_mask & (1 << SIGKILL);
     int sigstop_bit = new_mask & (1 << SIGSTOP);
-    // Ignoring SIGKILL or SIGSTOP is not allowed return error
+    // Ignoring SIGKILL or SIGSTOP is not allowed return error & abort
     if(sigkill_bit || sigstop_bit)
         return -1;
     acquire(&myproc()->lock);
