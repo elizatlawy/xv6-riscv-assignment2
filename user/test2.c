@@ -98,9 +98,9 @@ void thread_func(void) {
 
 void
 thread_test3(void) {
-    int tid;
+    int tid = 0;
     int status;
-    int ids[8];
+    int ids[8] = {0};
     void *stacks[8];
     for (int i = 0; i < 7; i++) {
         void *stack = malloc(MAX_STACK_SIZE);
@@ -149,7 +149,7 @@ void many_proc_many_thread() {
         for (int i = 1; i < 50; i++) {
             int status;
             wait(&status);
-            printf("Child PID: %d exit with status: %d\n", childs_pid[i], status);
+//            printf("Child PID: %d exit with status: %d\n", childs_pid[i], status);
         }
         printf("FINISHED ALLL\n");
         exit(0);
@@ -212,16 +212,16 @@ void threads_sigstop(){
         kill_res = kill(child_pid, 17); // SIGSTOP
         printf(" SIGSTOP sent to child: %d with res: %d\n", child_pid, kill_res);
         sleep(10);
-        kill_res = kill(child_pid, 19); // SIGCONT
-        printf(" SIGCONT sent to child: %d with res: %d\n", child_pid, kill_res);
-        sleep(5);
+//        kill_res = kill(child_pid, 19); // SIGCONT
+//        printf(" SIGCONT sent to child: %d with res: %d\n", child_pid, kill_res);
+//        sleep(5);
         kill_res = kill(child_pid, 9); // SIGKILL
         printf(" SIGKILL sent to child: %d with res: %d\n",child_pid,kill_res);
         sleep(50);
         kthread_exit(0); // exit process
     }
     else{ // child proc
-        int tid;
+        int tid = 0;
         int status;
         int ids[7];
         void *stacks[7];
@@ -264,7 +264,7 @@ void thread_fork_func(){
 }
 
 void fork_thread_test(){
-    int tid;
+    int tid = 0;
     int status;
     int ids[7];
     void *stacks[7];
@@ -292,9 +292,9 @@ void fork_thread_test(){
 
 int
 main(int argc, char **argv) {
-    fork_thread_test();
-//    kill_main_thread();
-//    threads_sigstop();
+//    fork_thread_test();
+////    kill_main_thread();
+    threads_sigstop();
     printf("got here : bad\n");
     exit(0);
 }

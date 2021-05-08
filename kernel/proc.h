@@ -128,7 +128,8 @@ struct proc {
   int pid;                     // Process ID
   // proc_tree_lock must be held when using this:
   struct proc *parent;         // Parent process
-  int in_usr_sig_handler;          // If non-zero, process is currently handling signals
+  int in_usr_sig_handler;      // If non-zero, process is currently handling signals
+  int handaling_exit;         // If non-zero, process is currently handling signals
 
   // these are private to the process, so p->lock need not be held.
 //  uint64 kstack;               // Virtual address of kernel stack
