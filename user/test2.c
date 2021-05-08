@@ -243,12 +243,58 @@ void threads_sigstop(){
     }
 }
 
+void thread_fork_func(){
+    int tid = kthread_id();
+    printf("Hello World! tid: %d\n", tid);
+    for( int i = 1; i <= 100; i++){
+        if( i == 50){
+            printf("PID: %d TID: %d is about to fork\n", tid, getpid());
+            int child_pid = fork();
+            printf("PID: %d TID: %d AFTER fork\n", tid, getpid());
+            if(child_pid > 0){ // father
+                int status;
+                wait(&status);
+                printf("Child PID: %d exit with status: %d\n", child_pid, status);
+            }
+        }
+    }
+//    sleep(10);
+    printf("After sleep TID: %d is about to exit\n", tid);
+    kthread_exit(tid);
+}
+
+void fork_thread_test(){
+    int tid;
+    int status;
+    int ids[7];
+    void *stacks[7];
+    for (int i = 0; i < 7; i++) {
+        void *stack = malloc(MAX_STACK_SIZE);
+        ids[i] = tid;
+        stacks[i] = stack;
+        tid = kthread_create(thread_fork_func, stack);
+        kthread_join(tid, &status);
+        printf("joined with: %d exit status: %d\n", tid, status);
+//        printf("new thread in town: %d\n", tid);
+//        sleep(3);
+    }
+    // kthread_exit(0);  // exit process
+
+    for (int i = 0; i < 7; i++) {
+        tid = ids[i];
+        kthread_join(tid, &status);
+        printf("joined with: %d exit status: %d\n", tid, status);
+        free(stacks[i]);
+    }
+     kthread_exit(0);  // exit process
+}
 
 
 int
 main(int argc, char **argv) {
+    fork_thread_test();
 //    kill_main_thread();
-    threads_sigstop();
+//    threads_sigstop();
     printf("got here : bad\n");
     exit(0);
 }
