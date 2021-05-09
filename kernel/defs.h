@@ -108,6 +108,7 @@ int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 int             sigaction(int signum, const struct sigaction *act, struct sigaction *oldact);
 void            signal_handler(void);
+void            handle_sigstop();
 void            exit_thread(int);
 void            exit_process(int);
 int             bsem_alloc();

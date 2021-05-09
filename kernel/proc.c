@@ -1060,7 +1060,7 @@ void signal_handler(void) {
                     acquire(&p->lock);
                     // check if SIGKILL is received before SIGCONT
                     if (p->pending_signals & (1 << SIGKILL)) {
-                        p->pending_signals ^= (1 << 19);
+                        p->pending_signals ^= (1 << SIGSTOP);
                         p->pending_signals ^= (1 << SIGKILL);
                         for (curr_t = p->threads; curr_t < &p->threads[NTHREAD]; curr_t++) {
                             if (curr_t->tid != t->tid && curr_t->state == STOPPED)
@@ -1077,7 +1077,7 @@ void signal_handler(void) {
                         curr_t->state = RUNNABLE;
                 }
                 p->pending_signals ^= (1 << i); // Set the bit of the signal back to zero (bitwise xor)
-                p->pending_signals ^= (1 << 19); // Set the bit of the signal back to zero (bitwise xor)
+                p->pending_signals ^= (1 << SIGCONT); // Set the bit of the signal back to zero (bitwise xor)
             }
                 // just in case SIGCONT received and the process is not on SIGSTOP
             else if (p->signal_handlers[i] == (void *) SIGCONT) { // SIGKILL Handling
